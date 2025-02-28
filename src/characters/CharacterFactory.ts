@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { Player } from '../objects/Player';
+import { GameConfig } from '../config/GameConfig';
 
 export enum CharacterType {
   DEFAULT = 'default',
@@ -10,14 +11,6 @@ export enum CharacterType {
   THROWER = 'thrower'
 }
 
-export class CharacterStats {
-  health: number = 100;
-  speed: number = 200;
-  weaponType: string = 'default';
-  specialAbility: string = 'none';
-  color: number = 0xffffff;
-}
-
 export class CharacterFactory {
   private scene: Phaser.Scene;
   
@@ -26,73 +19,98 @@ export class CharacterFactory {
   }
   
   createCharacter(type: CharacterType, x: number, y: number): Player {
-    const stats = this.getCharacterStats(type);
-    
-    // プレイヤーを作成
+    // 基本のプレイヤーを作成
     const player = new Player(this.scene, x, y);
     
-    // キャラクタータイプ別の設定
-    player.setMaxHealth(stats.health);
-    player.setSpeed(stats.speed);
-    player.setWeapon(stats.weaponType);
-    player.setSpecialAbility(stats.specialAbility);
-    
-    // キャラクター外見の設定
-    player.setTint(stats.color);
+    // タイプに応じてプレイヤーをカスタマイズ
+    switch (type) {
+      case CharacterType.TANK:
+        this.setupTank(player);
+        break;
+      case CharacterType.SPEEDER:
+        this.setupSpeeder(player);
+        break;
+      case CharacterType.SNIPER:
+        this.setupSniper(player);
+        break;
+      case CharacterType.HEALER:
+        this.setupHealer(player);
+        break;
+      case CharacterType.THROWER:
+        this.setupThrower(player);
+        break;
+      default:
+        this.setupDefault(player);
+        break;
+    }
     
     return player;
   }
   
-  private getCharacterStats(type: CharacterType): CharacterStats {
-    const stats = new CharacterStats();
+  private setupDefault(player: Player): void {
+    // デフォルトのキャラクター：バランスの良いステータス
+    player.setMaxHealth(100);
+    player.setWeapon('default');
+    player.setSpecialAbility('shield');
     
-    switch (type) {
-      case CharacterType.TANK:
-        stats.health = 200;
-        stats.speed = 150;
-        stats.weaponType = 'shotgun';
-        stats.specialAbility = 'shield';
-        stats.color = 0xff0000;
-        break;
-        
-      case CharacterType.SPEEDER:
-        stats.health = 80;
-        stats.speed = 300;
-        stats.weaponType = 'machinegun';
-        stats.specialAbility = 'dash';
-        stats.color = 0x00ff00;
-        break;
-        
-      case CharacterType.SNIPER:
-        stats.health = 70;
-        stats.speed = 180;
-        stats.weaponType = 'sniper';
-        stats.specialAbility = 'scope';
-        stats.color = 0x0000ff;
-        break;
-        
-      case CharacterType.HEALER:
-        stats.health = 120;
-        stats.speed = 200;
-        stats.weaponType = 'default';
-        stats.specialAbility = 'heal';
-        stats.color = 0x00ffff;
-        break;
-        
-      case CharacterType.THROWER:
-        stats.health = 100;
-        stats.speed = 190;
-        stats.weaponType = 'thrower';
-        stats.specialAbility = 'minefield';
-        stats.color = 0xff00ff;
-        break;
-        
-      default:
-        // デフォルトキャラクターの設定はそのまま
-        stats.color = 0xffff00;
-        break;
-    }
+    // 見た目の設定
+    player.setTint(0xFFFFFF); // 白色
+  }
+  
+  private setupTank(player: Player): void {
+    // タンク：体力が高いが遅い
+    player.setMaxHealth(150);
+    player.setSpeed(GameConfig.CHARACTER_SPEED * 0.8);
+    player.setWeapon('shotgun');
+    player.setSpecialAbility('shield');
     
-    return stats;
+    // 見た目の設定
+    player.setTint(0xFF0000); // 赤色
+    player.setScale(1.2);
+  }
+  
+  private setupSpeeder(player: Player): void {
+    // スピーダー：速いが体力が低い
+    player.setMaxHealth(80);
+    player.setSpeed(GameConfig.CHARACTER_SPEED * 1.3);
+    player.setWeapon('machinegun');
+    player.setSpecialAbility('dash');
+    
+    // 見た目の設定
+    player.setTint(0x00FF00); // 緑色
+    player.setScale(0.9);
+  }
+  
+  private setupSniper(player: Player): void {
+    // スナイパー：攻撃力高いが発射速度遅い
+    player.setMaxHealth(90);
+    player.setSpeed(GameConfig.CHARACTER_SPEED * 0.9);
+    player.setWeapon('sniper');
+    player.setSpecialAbility('scope');
+    
+    // 見た目の設定
+    player.setTint(0x0000FF); // 青色
+  }
+  
+  private setupHealer(player: Player): void {
+    // ヒーラー：味方を回復するが攻撃力低め
+    player.setMaxHealth(110);
+    player.setSpeed(GameConfig.CHARACTER_SPEED * 1.1);
+    player.setWeapon('default');
+    player.setSpecialAbility('heal');
+    
+    // 見た目の設定
+    player.setTint(0xFFFF00); // 黄色
+  }
+  
+  private setupThrower(player: Player): void {
+    // 投擲兵：爆発する弾を投げる
+    player.setMaxHealth(100);
+    player.setSpeed(GameConfig.CHARACTER_SPEED);
+    player.setWeapon('thrower');
+    player.setSpecialAbility('minefield');
+    
+    // 見た目の設定
+    player.setTint(0xFF00FF); // 紫色
   }
 }

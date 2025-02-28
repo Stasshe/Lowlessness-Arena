@@ -111,8 +111,14 @@ export class Weapon {
     const startX = this.owner.x + offsetX;
     const startY = this.owner.y + offsetY;
     
-    // 発射音
-    this.scene.sound.play('shoot');
+    // 発射音 - サウンドが読み込まれているかチェック
+    try {
+      if (this.scene.sound.get('shoot')) {
+        this.scene.sound.play('shoot');
+      }
+    } catch (e) {
+      console.warn('サウンド再生エラー:', e);
+    }
     
     // 複数発射の場合はスプレッド（広がり）を計算
     if (this.stats.bulletCount > 1) {

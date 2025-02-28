@@ -152,8 +152,12 @@ export class BotAI {
   
   private performAttack(): void {
     if (this.state === 'attack') {
-      // ターゲットの方向に攻撃
-      this.bot.attack(this.target.x, this.target.y);
+      try {
+        // ターゲットの方向に攻撃
+        this.bot.attack(this.target.x, this.target.y);
+      } catch (e) {
+        console.warn('ボット攻撃エラー:', e);
+      }
     }
   }
   

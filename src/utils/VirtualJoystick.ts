@@ -87,9 +87,11 @@ export class VirtualJoystick {
   }
   
   getVector(): { x: number; y: number } {
-    // Vector2は{ x: number; y: number }インターフェースを実装している
-    // 単純なオブジェクトを返す代わりに実際のVector2を返す
-    return this.vector;
+    // Vector2互換のオブジェクトを返す
+    return {
+      x: this.vector.x,
+      y: this.vector.y
+    };
   }
   
   isBeingUsed(pointer: Phaser.Input.Pointer): boolean {

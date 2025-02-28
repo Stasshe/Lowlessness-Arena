@@ -6,6 +6,7 @@ export class SoundManager {
   private musicVolume: number = 0.5;
   private sfxVolume: number = 0.8;
   private currentMusic: Phaser.Sound.BaseSound | null = null;
+  private soundsLoaded: boolean = false;
   
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -19,25 +20,36 @@ export class SoundManager {
   }
   
   private preloadSounds(): void {
-    // BGM
-    this.scene.load.audio('menu_bgm', 'assets/sounds/menu_bgm.mp3');
-    this.scene.load.audio('game_bgm', 'assets/sounds/game_bgm.mp3');
-    this.scene.load.audio('victory_bgm', 'assets/sounds/victory_bgm.mp3');
-    
-    // 効果音
-    this.scene.load.audio('button_click', 'assets/sounds/button_click.mp3');
-    this.scene.load.audio('shoot', 'assets/sounds/shoot.mp3');
-    this.scene.load.audio('hit', 'assets/sounds/hit.mp3');
-    this.scene.load.audio('explosion', 'assets/sounds/explosion.mp3');
-    this.scene.load.audio('skill_activate', 'assets/sounds/skill_activate.mp3');
-    this.scene.load.audio('ultimate_activate', 'assets/sounds/ultimate_activate.mp3');
-    this.scene.load.audio('player_damage', 'assets/sounds/player_damage.mp3');
-    this.scene.load.audio('player_death', 'assets/sounds/player_death.mp3');
-    this.scene.load.audio('countdown', 'assets/sounds/countdown.mp3');
-    
-    this.scene.load.once('complete', () => {
-      this.setupSounds();
-    });
+    // 既存のロードイベントを確認
+    if (this.scene.load.isLoading()) {
+      // すでにロード中なら、完了イベントを監視
+      this.scene.load.once('complete', () => {
+        this.setupSounds();
+      });
+    } else {
+      // BGM
+      this.scene.load.audio('menu_bgm', 'assets/sounds/menu_bgm.mp3');
+      this.scene.load.audio('game_bgm', 'assets/sounds/game_bgm.mp3');
+      this.scene.load.audio('victory_bgm', 'assets/sounds/victory_bgm.mp3');
+      
+      // 効果音
+      this.scene.load.audio('button_click', 'assets/sounds/button_click.mp3');
+      this.scene.load.audio('shoot', 'assets/sounds/shoot.mp3');
+      this.scene.load.audio('hit', 'assets/sounds/hit.mp3');
+      this.scene.load.audio('explosion', 'assets/sounds/explosion.mp3');
+      this.scene.load.audio('skill_activate', 'assets/sounds/skill_activate.mp3');
+      this.scene.load.audio('ultimate_activate', 'assets/sounds/ultimate_activate.mp3');
+      this.scene.load.audio('player_damage', 'assets/sounds/player_damage.mp3');
+      this.scene.load.audio('player_death', 'assets/sounds/player_death.mp3');
+      this.scene.load.audio('countdown', 'assets/sounds/countdown.mp3');
+      
+      // ロード開始
+      this.scene.load.start();
+      
+      this.scene.load.once('complete', () => {
+        this.setupSounds();
+      });
+    }
   }
   
   private setupSounds(): void {
@@ -59,6 +71,9 @@ export class SoundManager {
     
     // 音量設定を適用
     this.updateVolumes();
+    
+    this.soundsLoaded = true;
+    console.log('サウンド初期化完了');
   }
   
   private addSound(key: string, isMusic: boolean = false): void {
@@ -67,10 +82,10 @@ export class SoundManager {
       if (sound) {
         if (isMusic) {
           // 音楽はループさせる
+          // @ts-ignore - Phaserサウンドタイプの互換性のため
           sound.loop = true;
           
           // 音量設定
-          // ※ PhaserのBaseSoundインターフェースは型定義が不完全
           this.setSoundVolume(sound, this.musicVolume);
         } else {
           // 効果音の音量設定
@@ -87,8 +102,7 @@ export class SoundManager {
   // 異なる種類のサウンドオブジェクトに対応する汎用メソッド
   private setSoundVolume(sound: Phaser.Sound.BaseSound, volume: number): void {
     try {
-      // WebAudio APIの異なる実装に対応
-      // @ts-ignore - Phaserのサウンドオブジェクトには様々なプロパティが存在
+      // @ts-ignore - Phaserサウンドタイプの互換性のため
       if (typeof sound.setVolume === 'function') {
         // @ts-ignore
         sound.setVolume(volume);
@@ -120,10 +134,16 @@ export class SoundManager {
     }
     
     // 新しいBGMを再生
-    const music = this.sounds.get(key);
-    if (music) {
-      music.play();
-      this.currentMusic = music;
+    try {
+      const music = this.sounds.get(key);
+      if (music) {
+        music.play();
+        this.currentMusic = music;
+      } else if (this.soundsLoaded) {
+        console.warn(`音楽 "${key}" が見つかりません`);
+      }
+    } catch (e) {
+      console.warn('音楽再生エラー:', e);
     }
   }
   
@@ -135,9 +155,24 @@ export class SoundManager {
   }
   
   playSfx(key: string): void {
-    const sfx = this.sounds.get(key);
-    if (sfx && !sfx.isPlaying) {
-      sfx.play();
+    try {
+      const sfx = this.sounds.get(key);
+      if (sfx) {
+        if (!sfx.isPlaying) {
+          sfx.play();
+        }
+      } else if (this.soundsLoaded) {
+        console.warn(`効果音 "${key}" が見つかりません`);
+        // フォールバックとして、ダミーサウンドを作成して再生
+        const dummySound = this.scene.sound.add(key);
+        if (dummySound) {
+          this.setSoundVolume(dummySound, this.sfxVolume);
+          dummySound.play();
+          this.sounds.set(key, dummySound);
+        }
+      }
+    } catch (e) {
+      console.warn('効果音再生エラー:', e);
     }
   }
   
@@ -201,5 +236,10 @@ export class SoundManager {
   
   getSfxVolume(): number {
     return this.sfxVolume;
+  }
+
+  // サウンドが読み込まれたかを確認するメソッド
+  isSoundLoaded(): boolean {
+    return this.soundsLoaded;
   }
 }

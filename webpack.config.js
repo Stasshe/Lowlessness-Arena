@@ -35,7 +35,13 @@ module.exports = {
     },
     compress: true,
     port: 9000,
-    hot: true
+    hot: true,
+    client: {
+      overlay: {
+        errors: true,
+        warnings: false,
+      },
+    },
   },
   plugins: [
     new HtmlWebpackPlugin({
@@ -44,8 +50,9 @@ module.exports = {
     }),
     new CopyWebpackPlugin({
       patterns: [
-        { from: 'src/assets', to: 'assets' }
+        { from: 'src/assets', to: 'assets', noErrorOnMissing: true }
       ]
     })
-  ]
+  ],
+  devtool: 'source-map'
 };

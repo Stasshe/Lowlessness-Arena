@@ -8,6 +8,20 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
   
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, 'bullet');
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
+    
+    // 物理ボディの設定
+    if (this.body) {
+      this.body.setSize(8, 8);
+      // ArcadePhysicsBodyの場合のみgravityを設定
+      if ('setAllowGravity' in this.body) {
+        (this.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+      }
+    }
+    
+    this.setActive(false);
+    this.setVisible(false);
   }
   
   fire(x: number, y: number, angle: number, speed: number, damage: number, range: number): void {
@@ -25,7 +39,10 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     
     // body が null でないことを確認
     if (this.body) {
-      this.scene.physics.velocityFromRotation(angle, speed, this.body.velocity);
+      // ArcadePhysicsBodyの場合のみvelocityを設定
+      if ('velocity' in this.body) {
+        this.scene.physics.velocityFromRotation(angle, speed, (this.body as Phaser.Physics.Arcade.Body).velocity);
+      }
     }
     
     // 弾のサイズを設定
@@ -35,7 +52,7 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     this.setTint(0xffaa00);
   }
   
-  update(time: number, delta: number): void {
+  update(): void {
     // 射程範囲外に出たら消滅
     const distance = Phaser.Math.Distance.Between(
       this.startX, this.startY,
@@ -49,25 +66,31 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
   
   onHit(): void {
     // ヒットエフェクト
-    this.scene.add.circle(this.x, this.y, 5, 0xffaa00, 0.8)
-      .setDepth(10)
-      .setAlpha(0.8);
-    
-    // パーティクルエフェクト
-    const particles = this.scene.add.particles(this.x, this.y, 'bullet', {
-      speed: 50,
-      scale: { start: 0.5, end: 0 },
-      blendMode: 'ADD',
-      lifespan: 200,
-      quantity: 5
-    });
-    
-    // パーティクルを少し出した後に削除
-    this.scene.time.delayedCall(200, () => {
-      particles.destroy();
-    });
-    
-    this.disable();
+    if (this.active) {
+      this.scene.add.circle(this.x, this.y, 5, 0xffaa00, 0.8)
+        .setDepth(10)
+        .setAlpha(0.8);
+      
+      // パーティクルエフェクト
+      try {
+        const particles = this.scene.add.particles(this.x, this.y, 'bullet', {
+          speed: 50,
+          scale: { start: 0.5, end: 0 },
+          blendMode: 'ADD',
+          lifespan: 200,
+          quantity: 5
+        });
+        
+        // パーティクルを少し出した後に削除
+        this.scene.time.delayedCall(200, () => {
+          particles.destroy();
+        });
+      } catch (e) {
+        console.warn('パーティクルエフェクトエラー:', e);
+      }
+      
+      this.disable();
+    }
   }
   
   disable(): void {

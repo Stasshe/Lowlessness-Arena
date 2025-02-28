@@ -5,8 +5,15 @@ import { OnlineGameScene } from './scenes/OnlineGameScene';
 import { LobbyScene } from './scenes/LobbyScene';
 import { GameConfig } from './config/GameConfig';
 
-// 型定義の拡張を確実に読み込む
-import './types/phaser-extended';
+// Windowインターフェースを拡張してunlockAudio関数を追加
+declare global {
+  interface Window {
+    unlockAudio?: () => void;
+  }
+}
+
+// 型定義ファイルへの参照はコメントアウト
+// import './types/phaser-extended';
 
 // fsとpathをブラウザ環境で使わないようにする
 let fs: any = undefined;
@@ -40,6 +47,31 @@ window.addEventListener('load', () => {
     }
   }
   
+  // サウンドの初期化 - モバイルブラウザ対応
+  const unlockAudio = () => {
+    // window.unlockAudioが存在する場合のみ呼び出す
+    if (typeof window.unlockAudio === 'function') {
+      window.unlockAudio();
+    }
+    
+    // Phaser.Sound.AudioContextの代わりにWebAudioContextを使用
+    const WebAudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (WebAudioContext) {
+      try {
+        const audioContext = new WebAudioContext();
+        if (audioContext.state === 'suspended') {
+          audioContext.resume();
+        }
+      } catch (e) {
+        console.warn('AudioContext初期化エラー:', e);
+      }
+    }
+  };
+  
+  // クリックやタップでサウンドをアンロック
+  document.addEventListener('click', unlockAudio, false);
+  document.addEventListener('touchstart', unlockAudio, false);
+  
   // Phaserゲーム設定
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
@@ -61,6 +93,10 @@ window.addEventListener('load', () => {
     input: {
       activePointers: 2,
       keyboard: true
+    },
+    audio: {
+      disableWebAudio: false,
+      noAudio: false
     }
   };
 

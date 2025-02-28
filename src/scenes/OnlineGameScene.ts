@@ -16,6 +16,7 @@ import {
   orderBy, 
   limit 
 } from 'firebase/firestore';
+import { Bullet } from '../objects/Bullet';
 
 export class OnlineGameScene extends Phaser.Scene {
   private player!: Player;
@@ -329,10 +330,19 @@ export class OnlineGameScene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.map.getWalls());
     
     // 弾と壁の衝突
-    this.physics.add.collider(this.player.getWeapon().getBullets(), this.map.getWalls(), 
-      (bullet: any) => {
-        bullet.onHit();
-      }
+    this.physics.add.collider(
+      this.player.getWeapon().getBullets(),
+      this.map.getWalls(),
+      // 型キャストを修正
+      (bulletObj, wall) => {
+        // Arcade Physicsの衝突オブジェクトを正しく扱う
+        if (bulletObj instanceof Phaser.Physics.Arcade.Sprite) {
+          const bullet = bulletObj as Bullet;
+          bullet.onHit();
+        }
+      },
+      undefined,
+      this
     );
     
     // 相手がいる場合は相手との衝突も設定
@@ -341,32 +351,75 @@ export class OnlineGameScene extends Phaser.Scene {
       this.physics.add.collider(this.opponent, this.map.getWalls());
       
       // プレイヤーの弾と対戦相手の衝突
-      this.physics.add.overlap(this.player.getWeapon().getBullets(), this.opponent, 
-        (bullet: any, enemy: any) => {
-          enemy.takeDamage(bullet.getDamage());
-          bullet.onHit();
-          this.soundManager.playSfx('hit');
-          
-          // 相手のHPがゼロになったらゲーム終了
-          if (enemy.getHealth() <= 0 && !this.gameOver) {
-            this.firebaseManager.updateGameState('finished');
+      this.physics.add.overlap(
+        this.player.getWeapon().getBullets(),
+        this.opponent,
+        // 型キャストを修正
+        (bulletObj, enemy) => {
+          try {
+            // Arcade Physicsの衝突オブジェクトを正しく扱う
+            if (bulletObj instanceof Phaser.Physics.Arcade.Sprite && enemy instanceof Phaser.Physics.Arcade.Sprite) {
+              const bullet = bulletObj as Bullet;
+              const enemyPlayer = enemy as Player;
+              
+              // ダメージ計算と適用
+              const damage = bullet.getDamage();
+              enemyPlayer.takeDamage(damage);
+              
+              // ヒットエフェクト
+              bullet.onHit();
+              
+              // 効果音
+              this.soundManager.playSfx('hit');
+              
+              // 相手のHPがゼロになったらゲーム終了
+              if (enemyPlayer.getHealth() <= 0 && !this.gameOver) {
+                this.firebaseManager.updateGameState('finished');
+              }
+            }
+          } catch (e) {
+            console.warn('対戦相手ダメージ処理エラー:', e);
           }
-        }
+        },
+        undefined,
+        this
       );
       
       // 対戦相手の弾とプレイヤーの衝突
-      this.physics.add.overlap(this.opponent?.getWeapon().getBullets(), this.player, 
-        (bullet: any, player: any) => {
-          player.takeDamage(bullet.getDamage());
-          bullet.onHit();
-          this.soundManager.playSfx('player_damage');
-          
-          // 自分のHPがゼロになったらゲーム終了
-          if (player.getHealth() <= 0 && !this.gameOver) {
-            this.firebaseManager.updateGameState('finished');
-          }
-        }
-      );
+      if (this.opponent.getWeapon()) {
+        this.physics.add.overlap(
+          this.opponent.getWeapon().getBullets(),
+          this.player,
+          // 型キャストを修正
+          (bulletObj, playerObj) => {
+            try {
+              // Arcade Physicsの衝突オブジェクトを正しく扱う
+              if (bulletObj instanceof Phaser.Physics.Arcade.Sprite && playerObj instanceof Phaser.Physics.Arcade.Sprite) {
+                const bullet = bulletObj as Bullet;
+                
+                // ダメージ計算と適用
+                const damage = bullet.getDamage();
+                this.player.takeDamage(damage);
+                
+                // ヒットエフェクト
+                bullet.onHit();
+                
+                // 効果音
+                this.soundManager.playSfx('player_damage');
+                
+                // 自分のHPがゼロになったらゲーム終了
+                if (this.player.getHealth() <= 0 && !this.gameOver) {
+                  this.firebaseManager.updateGameState('finished');
+                }
+              }
+            } catch (e) {
+              console.warn('プレイヤーダメージ処理エラー:', e);
+            }
+          },
+          undefined,
+          this
+        );
+      }
     }
   }
 

@@ -7,6 +7,7 @@ import { UI } from '../ui/UI';
 import { BotAI, BotDifficulty } from '../ai/BotAI';
 import { CharacterFactory, CharacterType } from '../characters/CharacterFactory';
 import { SoundManager } from '../utils/SoundManager';
+import { Bullet } from '../objects/Bullet';
 
 export class TrainingScene extends Phaser.Scene {
   private player!: Player;
@@ -55,6 +56,16 @@ export class TrainingScene extends Phaser.Scene {
     
     // サウンドマネージャーの初期化
     this.soundManager = new SoundManager(this);
+    
+    // サウンドが読み込まれるのを少し待つ
+    this.time.delayedCall(100, () => {
+      // BGM再生
+      try {
+        this.soundManager.playMusic('game_bgm');
+      } catch (e) {
+        console.warn('BGM再生エラー:', e);
+      }
+    });
     
     // キャラクターファクトリーの初期化
     this.characterFactory = new CharacterFactory(this);
@@ -108,9 +119,6 @@ export class TrainingScene extends Phaser.Scene {
     .on('pointerdown', () => {
       this.scene.start('MainMenuScene');
     });
-    
-    // BGM再生
-    this.soundManager.playMusic('game_bgm');
   }
 
   private createEnemyBots(): void {
@@ -147,31 +155,81 @@ export class TrainingScene extends Phaser.Scene {
     });
     
     // プレイヤーの弾と壁の衝突
-    this.physics.add.collider(this.player.getWeapon().getBullets(), this.map.getWalls(), 
-      (bullet: any) => {
-        bullet.onHit();
-      }
+    this.physics.add.collider(
+      this.player.getWeapon().getBullets(),
+      this.map.getWalls(),
+      // 型キャストを修正
+      (bulletObj, wall) => {
+        // Arcade Physicsの衝突オブジェクトを正しく扱う
+        if (bulletObj instanceof Phaser.Physics.Arcade.Sprite) {
+          const bullet = bulletObj as Bullet;
+          bullet.onHit();
+        }
+      },
+      undefined,
+      this
     );
     
     // プレイヤーの弾と敵ボットの衝突
     this.enemyBots.forEach(({ bot }) => {
-      this.physics.add.overlap(this.player.getWeapon().getBullets(), bot, 
-        (bullet: any, enemy: any) => {
-          enemy.takeDamage(bullet.getDamage());
-          bullet.onHit();
-          this.soundManager.playSfx('hit');
-        }
+      this.physics.add.overlap(
+        this.player.getWeapon().getBullets(),
+        bot,
+        // 型キャストを修正
+        (bulletObj, enemy) => {
+          try {
+            // Arcade Physicsの衝突オブジェクトを正しく扱う
+            if (bulletObj instanceof Phaser.Physics.Arcade.Sprite && enemy instanceof Phaser.Physics.Arcade.Sprite) {
+              const bullet = bulletObj as Bullet;
+              const enemyPlayer = enemy as Player;
+              
+              // ダメージ計算と適用
+              const damage = bullet.getDamage();
+              enemyPlayer.takeDamage(damage);
+              
+              // ヒットエフェクト
+              bullet.onHit();
+              
+              // 効果音
+              this.soundManager.playSfx('hit');
+            }
+          } catch (e) {
+            console.warn('ボットダメージ処理エラー:', e);
+          }
+        },
+        undefined,
+        this
       );
     });
     
     // 敵ボットの弾とプレイヤーの衝突
     this.enemyBots.forEach(({ bot }) => {
-      this.physics.add.overlap(bot.getWeapon().getBullets(), this.player, 
-        (bullet: any, player: any) => {
-          player.takeDamage(bullet.getDamage());
-          bullet.onHit();
-          this.soundManager.playSfx('player_damage');
-        }
+      this.physics.add.overlap(
+        bot.getWeapon().getBullets(),
+        this.player,
+        // 型キャストを修正
+        (bulletObj, playerObj) => {
+          try {
+            // Arcade Physicsの衝突オブジェクトを正しく扱う
+            if (bulletObj instanceof Phaser.Physics.Arcade.Sprite && playerObj instanceof Phaser.Physics.Arcade.Sprite) {
+              const bullet = bulletObj as Bullet;
+              
+              // ダメージ計算と適用
+              const damage = bullet.getDamage();
+              this.player.takeDamage(damage);
+              
+              // ヒットエフェクト
+              bullet.onHit();
+              
+              // 効果音
+              this.soundManager.playSfx('player_damage');
+            }
+          } catch (e) {
+            console.warn('プレイヤーダメージ処理エラー:', e);
+          }
+        },
+        undefined,
+        this
       );
     });
   }

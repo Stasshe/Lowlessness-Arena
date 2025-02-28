@@ -176,7 +176,11 @@ export class MainMenuScene extends Phaser.Scene {
           scale: { from: 0.95, to: 1 },
           duration: 100,
           ease: 'Power1',
-          onComplete: callback
+          onComplete: () => {
+            // 現在のシーンをしっかりクリーンアップしてから遷移
+            this.cleanupCurrentScene();
+            callback();
+          }
         });
       });
     }
@@ -192,6 +196,39 @@ export class MainMenuScene extends Phaser.Scene {
       delay: (y - 200) * 1.5, // 位置によって遅延を変える
       ease: 'Back.easeOut'
     });
+  }
+  
+  // シーン切り替え前のクリーンアップ処理を追加
+  private cleanupCurrentScene(): void {
+    // 全てのタイマーをクリア
+    this.time.removeAllEvents();
+    
+    // 全ての既存のトゥイーンをクリア
+    this.tweens.killAll();
+    
+    // アクティブなトランジションをクリア
+    this.cameras.main.resetFX();
+    
+    // 未使用のテクスチャを解放
+    this.textures.each((texture) => {
+      if (texture.key !== '__DEFAULT' && texture.key !== '__MISSING') {
+        if (texture.key.startsWith('__') || texture.key === 'menu_bg' || texture.key === 'logo') {
+          return; // システムテクスチャやメニュー画像はスキップ
+        }
+        // このシーンで使用しない一時的なテクスチャを解放
+        // this.textures.remove(texture.key);
+      }
+    }, this); // scopeを追加
+    
+    // メモリを解放するためにガベージコレクションを促す
+    if (typeof window !== 'undefined' && window.gc) {
+      window.gc();
+    }
+  }
+  
+  // シーンのシャットダウン処理を追加
+  shutdown() {
+    this.cleanupCurrentScene();
   }
   
   private showMessage(message: string): void {

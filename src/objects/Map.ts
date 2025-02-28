@@ -164,18 +164,28 @@ export class Map {
 
   // リソース解放用のメソッド
   destroy(): void {
-    // 壁と茂みのグループを解放
-    if (this.walls) {
-      this.walls.clear(true, true);
-      this.walls.destroy();
+    try {
+      // 壁と茂みのグループを解放
+      if (this.walls) {
+        this.walls.clear(true, true);
+        // isTransitionActiveプロパティが存在しないため、条件を修正
+        if (this.walls.scene && this.walls.scene.sys) {
+          this.walls.destroy(true);
+        }
+      }
+      
+      if (this.bushes) {
+        this.bushes.clear(true, true);
+        // isTransitionActiveプロパティが存在しないため、条件を修正
+        if (this.bushes.scene && this.bushes.scene.sys) {
+          this.bushes.destroy(true);
+        }
+      }
+      
+      // スポーンポイントをクリア
+      this.spawnPoints = [];
+    } catch (e) {
+      console.warn('Map destroy error:', e);
     }
-    
-    if (this.bushes) {
-      this.bushes.clear(true, true);
-      this.bushes.destroy();
-    }
-    
-    // スポーンポイントをクリア
-    this.spawnPoints = [];
   }
 }

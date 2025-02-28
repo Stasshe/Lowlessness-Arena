@@ -186,25 +186,46 @@ export class VirtualJoystick {
 
   // リソース解放用のメソッドを追加
   destroy(): void {
-    // イベントリスナーを解除
-    this.scene.input.off('pointerdown', this.onPointerDown, this);
-    this.scene.input.off('pointermove', this.onPointerMove, this);
-    this.scene.input.off('pointerup', this.onPointerUp, this);
-    
-    // 描画要素を削除
-    this.base.destroy();
-    this.stick.destroy();
-    
-    if (this.targetLine) {
-      this.targetLine.destroy();
+    try {
+      // イベントリスナーを解除
+      this.scene.input.off('pointerdown', this.onPointerDown, this);
+      this.scene.input.off('pointermove', this.onPointerMove, this);
+      this.scene.input.off('pointerup', this.onPointerUp, this);
+      
+      // 描画要素を削除（存在するかどうかをscene内で確認）
+      if (this.base) {
+        // 明示的に存在確認とactive確認を行う
+        if (this.base.active && this.scene && this.scene.children.exists(this.base)) {
+          this.base.destroy();
+        }
+      }
+      
+      if (this.stick) {
+        // 明示的に存在確認とactive確認を行う
+        if (this.stick.active && this.scene && this.scene.children.exists(this.stick)) {
+          this.stick.destroy();
+        }
+      }
+      
+      if (this.targetLine) {
+        // 明示的に存在確認とactive確認を行う
+        if (this.targetLine.active && this.scene && this.scene.children.exists(this.targetLine)) {
+          this.targetLine.destroy();
+        }
+      }
+      
+      if (this.targetCircle) {
+        // 明示的に存在確認とactive確認を行う
+        if (this.targetCircle.active && this.scene && this.scene.children.exists(this.targetCircle)) {
+          this.targetCircle.destroy();
+        }
+      }
+      
+      // 参照をクリア
+      this.pointer = null;
+      this.vector.reset();
+    } catch (e) {
+      console.warn('VirtualJoystick destroy error:', e);
     }
-    
-    if (this.targetCircle) {
-      this.targetCircle.destroy();
-    }
-    
-    // 参照をクリア
-    this.pointer = null;
-    this.vector.reset();
   }
 }

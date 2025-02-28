@@ -104,6 +104,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // 死亡状態ではない場合のみ移動可能
     if (this.currentState === PlayerState.DEAD) return;
     
+    // 物理ボディがnullでないことを確認
+    if (!this.body) {
+      console.warn('物理ボディが初期化されていません。再初期化します。');
+      this.scene.physics.world.enable(this);
+      return;
+    }
+    
     // 方向ベクトルが0でない場合のみ移動
     if (directionX !== 0 || directionY !== 0) {
       // ベクトルを正規化し、速さを設定
@@ -742,6 +749,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return this.weapon;
   }
   
+  // 物理ボディを確認し、必要なら再初期化するメソッド
+  ensurePhysicsBody(): void {
+    if (!this.body) {
+      this.scene.physics.world.enable(this);
+      this.setCircle(GameConfig.CHARACTER_RADIUS);
+      this.setCollideWorldBounds(true);
+    }
+  }
+
   // リソース開放
   destroy(): void {
     if (this.healthBar) {

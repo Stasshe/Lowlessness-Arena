@@ -30,6 +30,14 @@ export class TrainingScene extends Phaser.Scene {
   }
 
   init(data: any) {
+    // シーンを初期化し、前回のインスタンスが残っていないことを確認
+    this.player = undefined as unknown as Player;
+    this.enemyBots = [];
+    this.map = undefined as unknown as Map;
+    this.ui = undefined as unknown as UI;
+    this.characterSelectUI = undefined;
+    this.skillCooldownDisplay = undefined;
+    
     // シーンの初期化時にデータを受け取れるようにする
     if (data && data.characterType) {
       this.selectedCharacterType = data.characterType;
@@ -389,12 +397,18 @@ export class TrainingScene extends Phaser.Scene {
     // 既存のオブジェクトをクリーンアップ
     this.cleanupGame();
     
+    // 物理エンジンをリセット
+    this.physics.world.resume();
+    
     // マップの作成
     this.map = new Map(this);
     
     // プレイヤーの作成（選択したキャラクタータイプを使用）
     const spawnPoint = this.map.getSpawnPoint();
     this.player = this.characterFactory.createCharacter(this.selectedCharacterType, spawnPoint.x, spawnPoint.y);
+    
+    // 物理ボディが有効であることを確認
+    this.player.ensurePhysicsBody();
     
     // カメラの設定
     this.cameras.main.startFollow(this.player);
@@ -479,50 +493,55 @@ export class TrainingScene extends Phaser.Scene {
     });
   }
 
-  // クリーンアップメソッドを追加
+  // クリーンアップメソッドを強化
   private cleanupGame(): void {
     // 既存のボットを削除
-    this.enemyBots.forEach(({ bot, ai }) => {
-      if (ai) ai.destroy();
-      if (bot) bot.destroy();
-    });
-    this.enemyBots = [];
+    if (this.enemyBots) {
+      this.enemyBots.forEach(({ bot, ai }) => {
+        if (ai) ai.destroy();
+        if (bot) bot.destroy();
+      });
+      this.enemyBots = [];
+    }
     
     // 既存のUIをクリア
     if (this.ui) {
       this.ui.destroy();
+      this.ui = undefined as unknown as UI;
     }
     
     // 既存のジョイスティックをクリア
     if (this.moveJoystick) {
-      // VirtualJoystickにdestroy()メソッドを追加する必要あり
-      // this.moveJoystick.destroy();
+      this.moveJoystick.destroy();
       this.moveJoystick = undefined;
     }
     
     if (this.skillJoystick) {
-      // this.skillJoystick.destroy();
+      this.skillJoystick.destroy();
       this.skillJoystick = undefined;
     }
     
     // 既存のスキルクールダウン表示をクリア
     if (this.skillCooldownDisplay) {
       this.skillCooldownDisplay.clear();
+      this.skillCooldownDisplay.destroy();
       this.skillCooldownDisplay = undefined;
     }
     
     // 既存のプレイヤーを削除
     if (this.player) {
       this.player.destroy();
-      this.player = undefined as any;
+      this.player = undefined as unknown as Player;
     }
     
     // 既存のマップを削除
     if (this.map) {
-      // Mapクラスにdestroy()メソッドを追加する必要あり
-      // this.map.destroy();
-      this.map = undefined as any;
+      this.map.destroy();
+      this.map = undefined as unknown as Map;
     }
+    
+    // 既存のイベントリスナーをクリーンアップ
+    this.input.off('pointerdown');
   }
 
   private createSkillCooldownDisplay(): void {
@@ -604,7 +623,12 @@ export class TrainingScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
-    if (!this.player) return; // プレイヤーがまだ作成されていなければスキップ
+    if (!this.player) {
+      return; // プレイヤーがまだ作成されていなければスキップ
+    }
+    
+    // プレイヤーの物理ボディが有効であることを確認
+    this.player.ensurePhysicsBody();
     
     // プレイヤー移動処理 - タッチスクリーンでは移動ジョイスティックを使用
     if (this.moveJoystick) {
@@ -671,5 +695,17 @@ export class TrainingScene extends Phaser.Scene {
     if (this.ui) {
       this.ui.update();
     }
+  }
+
+  // シーンのシャットダウン処理を追加
+  shutdown() {
+    this.cleanupGame();
+    this.physics.world.shutdown();
+  }
+  
+  // シーン終了時の処理を追加
+  destroy() {
+    this.cleanupGame();
+    this.physics.world.destroy();
   }
 }

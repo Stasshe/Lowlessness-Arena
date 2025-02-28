@@ -229,7 +229,7 @@ export class GameManager {
   /**
    * シーン更新処理
    */
-  update(time: number): void {
+  update(_: number): void {
     if (!this.player) return;
     
     // 入力コントローラーを更新

@@ -16,7 +16,7 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     
     // 物理ボディの設定
     scene.physics.add.existing(this);
-    this.body.setCircle(4);
+    if (this.body) this.body.setCircle(4);
     
     // 見た目の設定
     this.setScale(0.5);
@@ -40,7 +40,7 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     this.setVisible(true);
     
     // 速度ベクトルを設定
-    this.scene.physics.velocityFromAngle(Phaser.Math.RadToDeg(angle), speed, this.body.velocity);
+    if (this.body) this.scene.physics.velocityFromAngle(Phaser.Math.RadToDeg(angle), speed, this.body.velocity);
     this.setRotation(angle);
     
     // 軌跡のパーティクルエフェクトを有効化

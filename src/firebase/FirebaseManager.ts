@@ -39,13 +39,13 @@ export class FirebaseManager {
   private app: FirebaseApp;
   private auth: Auth;
   private db: Firestore;
-  private user: User | null = null;
+  user: User | null = null;
   private userId: string = '';
   private isAuthenticated: boolean = false;
   private gameId: string | null = null;
-  private onGameUpdateCallback?: (data: any) => void;
-  private onPlayerJoinedCallback?: (playerId: string) => void;
-  private onPlayerLeftCallback?: (playerId: string) => void;
+  onGameUpdateCallback?: (data: any) => void;
+  onPlayerJoinedCallback?: (playerId: string) => void;
+  onPlayerLeftCallback?: (playerId: string) => void;
   private gameListener?: () => void;
   private playersListener?: () => void;
   

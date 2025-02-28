@@ -363,7 +363,7 @@ export class TrainingScene extends Phaser.Scene {
     this.createSkillInfoDisplay();
     
     // バックボタン（メニューに戻る）
-    const backButton = this.add.text(16, 16, 'メニューに戻る', { 
+    this.add.text(16, 16, 'メニューに戻る', { 
       fontSize: '18px', 
       color: '#ffffff',
       backgroundColor: '#000000',
@@ -379,9 +379,10 @@ export class TrainingScene extends Phaser.Scene {
     // 攻撃の設定（クリックかタップで攻撃）
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       // ジョイスティックの操作でなく、UIボタン上でもない場合のみ攻撃
-      
-      if ((!this.gameManager.getMoveJoystick() || !this.gameManager.getMoveJoystick().isBeingUsed(pointer)) && 
-          (!this.gameManager.getSkillJoystick() || !this.gameManager.getSkillJoystick().isBeingUsed(pointer))) {
+      const moveJoystick = this.gameManager.getMoveJoystick();
+      const skillJoystick = this.gameManager.getSkillJoystick();
+      if ((!moveJoystick || !moveJoystick.isBeingUsed(pointer)) && 
+          (!skillJoystick || !skillJoystick.isBeingUsed(pointer))) {
         const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
         this.gameManager.getPlayer().attack(worldPoint.x, worldPoint.y);
       }
@@ -469,16 +470,15 @@ export class TrainingScene extends Phaser.Scene {
   // キャラクターとスキルの情報表示
   private createSkillInfoDisplay(): void {
     // キャラクター名とスキル名を表示
-    const characterName = CharacterData.getCharacterName(this.selectedCharacterType);
+    const characterName = CharacterData.getCharacterName(this.selectedCharacterType) || 'Unknown';
     const skillName = CharacterData.getSkillName(this.gameManager.getPlayer().getSkillType());
     const weaponName = CharacterData.getWeaponName(this.gameManager.getPlayer().getWeaponType());
     
     // スキル情報表示
     this.gameManager.createSkillInfoDisplay(skillName);
-      
+    this.gameManager.createWeaponInfoDisplay(characterName);
     // 武器情報表示
     this.gameManager.createWeaponInfoDisplay(weaponName);
-      
     // キー操作ガイド
     this.add.text(16, this.cameras.main.height - 110, 
       `操作: WASD移動 / クリックで攻撃 / スペースでスキル / Qでアルティメット`, {
@@ -519,6 +519,7 @@ export class TrainingScene extends Phaser.Scene {
   }
   
   // キャラクタータイプから表示名を取得
+  /*
   private getCharacterDisplayName(type: CharacterType): string {
     switch (type) {
       case CharacterType.TANK: return 'タンク';
@@ -529,7 +530,7 @@ export class TrainingScene extends Phaser.Scene {
       default: return 'バランス型';
     }
   }
-
+  */
   // スキルエフェクト表示の強化
   showSkillEffect(type: SkillType, x: number, y: number): void {
     // 既存のエフェクトをクリア
@@ -845,7 +846,7 @@ export class TrainingScene extends Phaser.Scene {
     this.gameManager.createSkillCooldownDisplay();
   }
 
-  update(time: number) {  // timeパラメータを使用していなくても、Phaserのフレームワークとの整合性のために残す
+  update(_: number) {  // timeパラメータを使用していなくても、Phaserのフレームワークとの整合性のために残す
     if (!this.gameManager.getPlayer()) {
       return; // プレイヤーがまだ作成されていなければスキップ
     }

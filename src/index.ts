@@ -10,23 +10,8 @@ import { OnlineGameScene } from './scenes/OnlineGameScene';
 declare global {
   interface Window {
     unlockAudio?: () => void;
-  }
-}
-
-// 型定義ファイルへの参照はコメントアウト
-// import './types/phaser-extended';
-
-// fsとpathをブラウザ環境で使わないようにする
-let fs: any = undefined;
-let path: any = undefined;
-
-// ブラウザ環境での読み込みエラーを回避
-if (typeof window === 'undefined') {
-  try {
-    fs = require('fs');
-    path = require('path');
-  } catch (e) {
-    console.warn('fs/pathモジュールをロードできませんでした');
+    AudioContext: typeof AudioContext;
+    webkitAudioContext: typeof AudioContext;
   }
 }
 
@@ -82,8 +67,8 @@ window.addEventListener('load', () => {
       window.unlockAudio();
     }
     
-    // Phaser.Sound.AudioContextの代わりにWebAudioContextを使用
-    const WebAudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    // WebAudioContextを使用
+    const WebAudioContext = window.AudioContext || window.webkitAudioContext;
     if (WebAudioContext) {
       try {
         const audioContext = new WebAudioContext();
@@ -105,8 +90,9 @@ window.addEventListener('load', () => {
 async function setupAssets() {
   try {
     // Node.js環境の場合はセットアップスクリプトを実行
-    if (typeof require !== 'undefined') {
-      await import('./setup-assets');
+    if (typeof window === 'undefined' && typeof require !== 'undefined') {
+      // サーバーサイド実行時のみ実行
+      // このコードはブラウザでは実行されない
     }
   } catch (e) {
     console.warn('アセットセットアップをスキップしました:', e);
@@ -137,7 +123,10 @@ function createFullscreenButton(game: Phaser.Game) {
     }
   });
   
-  document.getElementById('game-container')?.appendChild(button);
+  const container = document.getElementById('game-container');
+  if (container) {
+    container.appendChild(button);
+  }
 }
 
 // エラーハンドリング

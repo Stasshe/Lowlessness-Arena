@@ -60,7 +60,7 @@ export class MainMenuScene extends Phaser.Scene {
       });
     } catch (e) {
       // ロゴがロードできない場合はテキストで表示
-      const titleText = this.add.text(width / 2, height * 0.3, 'Lowlessness Arena', {
+      this.add.text(width / 2, height * 0.3, 'Lowlessness Arena', {
         fontSize: '64px',
         color: '#ffffff',
         stroke: '#000000',

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GameConfig } from '../config/GameConfig';
+//import { GameConfig } from '../config/GameConfig';
 import { SoundManager } from '../utils/SoundManager';
 import { FirebaseManager } from '../firebase/FirebaseManager';
 import { CharacterType } from '../characters/CharacterFactory';
@@ -55,6 +55,7 @@ export class LobbyScene extends Phaser.Scene {
     }).setOrigin(0.5);
     
     // 戻るボタン
+    /*
     const backButton = this.add.text(50, 50, '← メニューへ戻る', {
       fontSize: '20px',
       color: '#ffffff',
@@ -66,7 +67,7 @@ export class LobbyScene extends Phaser.Scene {
       this.soundManager.playSfx('button_click');
       this.scene.start('MainMenuScene');
     });
-    
+    */
     // キャラクター選択セクション
     this.createCharacterSelection();
     
@@ -118,7 +119,7 @@ export class LobbyScene extends Phaser.Scene {
     this.gamesList = this.add.container(0, 0);
     
     // 更新ボタン
-    const refreshButton = this.add.text(this.cameras.main.width / 2 + 150, 220, '⟳ 更新', {
+    this.add.text(this.cameras.main.width / 2 + 150, 220, '⟳ 更新', {
       fontSize: '20px',
       color: '#ffffff',
       backgroundColor: '#0077aa',
@@ -130,7 +131,6 @@ export class LobbyScene extends Phaser.Scene {
       this.soundManager.playSfx('button_click');
       this.refreshGamesList();
     });
-    
     // 初回のゲームリスト読み込み
     await this.refreshGamesList();
     

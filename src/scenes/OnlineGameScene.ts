@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GameConfig } from '../config/GameConfig';
+//import { GameConfig } from '../config/GameConfig';
 import { Player } from '../objects/Player';
 import { VirtualJoystick } from '../utils/VirtualJoystick';
 import { Map as GameMap, MapType } from '../objects/Map';  // Mapをエイリアスとして使用
@@ -16,7 +16,7 @@ export class OnlineGameScene extends Phaser.Scene {
   private otherPlayers: globalThis.Map<string, Player> = new globalThis.Map();
   private playerSubscriptions: globalThis.Map<string, () => void> = new globalThis.Map();
   private map!: GameMap;  // GameMapとして使用
-  private joystick?: VirtualJoystick;
+  //private joystick?: VirtualJoystick;
   private ui!: UI;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private isMobile: boolean = false;
@@ -30,7 +30,7 @@ export class OnlineGameScene extends Phaser.Scene {
   private isGameOver: boolean = false;
   private lastUpdateTimestamp: number = 0;
   private positionUpdateInterval: number = 100; // 0.1秒ごとに位置を送信
-  private playerCharacterType: CharacterType = CharacterType.DEFAULT;
+  //private playerCharacterType: CharacterType = CharacterType.DEFAULT;
   
   constructor() {
     super('OnlineGameScene');
@@ -155,7 +155,7 @@ export class OnlineGameScene extends Phaser.Scene {
       // プレイヤーが2人揃ったらゲーム開始
       const gameDoc = await this.firebaseManager.getGameDocument();
       
-      if (gameDoc.exists && gameDoc.data()?.playerCount >= 2) {
+      if (gameDoc && gameDoc.data()?.playerCount >= 2) {
         await this.firebaseManager.updateGameState('playing');
       }
     } catch (error) {
@@ -215,7 +215,7 @@ export class OnlineGameScene extends Phaser.Scene {
     this.physics.add.collider(
       playerBullets,
       this.map.getWalls(),
-      (bulletObj: any, wall: any) => {
+      (bulletObj: any, _: any) => {
         if (bulletObj instanceof Phaser.Physics.Arcade.Sprite) {
           const bullet = bulletObj as Bullet;
           if (bullet.onHit) {
@@ -377,7 +377,7 @@ export class OnlineGameScene extends Phaser.Scene {
     });
   }
   
-  update(time: number, delta: number) {
+  update(time: number, _: number) {
     if (!this.player || this.isGameOver) return;
     
     // プレイヤー移動処理 - タッチスクリーンでは移動ジョイスティックを使用
@@ -393,7 +393,7 @@ export class OnlineGameScene extends Phaser.Scene {
     
     // スキルジョイスティックでスキル使用
     if (this.skillJoystick) {
-      const skillVector = this.skillJoystick.getVector();
+      //const skillVector = this.skillJoystick.getVector();
       const vectorLength = this.skillJoystick.length();
       
       if (vectorLength > 0) {

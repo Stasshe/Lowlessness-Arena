@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GameConfig } from '../config/GameConfig';
+//import { GameConfig } from '../config/GameConfig';
 
 export class LoadingScene extends Phaser.Scene {
   private loadingText!: Phaser.GameObjects.Text;

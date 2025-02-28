@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GameConfig } from '../config/GameConfig';
 import { Weapon, WeaponType } from './Weapon';
+import { CharacterType } from '../characters/CharacterFactory'; // CharacterTypeをインポート
 
 // スキルタイプの列挙
 export enum SkillType {
@@ -34,19 +35,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private moveSpeed: number = GameConfig.CHARACTER_SPEED;
   private specialAbility: SkillType = SkillType.NONE;
   public isInBush: boolean = false;
-  private isVisible: boolean = true;
-  private skillLastUsed: number = 0;
-  private ultimateLastUsed: number = 0;
-  private skillCooldown: number = GameConfig.SKILL_COOLDOWN;
-  private ultimateCooldown: number = GameConfig.ULTIMATE_COOLDOWN;
-  private skillEffect: Phaser.GameObjects.Container | null = null;
-  private healthBar: Phaser.GameObjects.Graphics;
   private isInvincible: boolean = false;
   private isDashing: boolean = false;
   private isShielded: boolean = false;
   private shieldEndTime: number = 0;
   private shieldReduction: number = 0.3; // 30%ダメージ軽減
   private _isAlive: boolean = true; // isAliveプロパティを追加
+  private characterType: CharacterType = CharacterType.DEFAULT; // キャラクタータイプを保持するプロパティを追加
+  private skillEffect: Phaser.GameObjects.Container | null = null;
+  private healthBar: Phaser.GameObjects.Graphics;
   
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, 'player');
@@ -67,7 +64,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.updateHealthBar();
   }
   
-  update(time: number, delta: number): void {
+  update(time: number): void {
     // ヘルスバーの位置を更新
     this.updateHealthBar();
     
@@ -319,7 +316,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.events.emit('death', this.x, this.y);
     
     // 物理ボディを無効化
-    this.body.enable = false;
+    if (this.body) {
+      this.body.enable = false;
+    }
     
     // 透明にする
     this.setAlpha(0.5);
@@ -452,7 +451,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.shieldEndTime = this.scene.time.now + 3000; // 3秒間持続
     
     // シールドエフェクト
-    const skillEffect = this.scene.events.emit('skill', SkillType.SHIELD, this.x, this.y);
+    this.scene.events.emit('skill', SkillType.SHIELD, this.x, this.y);
     
     // シールド効果音
     try {
@@ -517,7 +516,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   
   private activateScopeMode(): void {
     // スコープモードを有効化（武器の精度と射程を向上）
-    const oldRange = this.weapon.getRange();
     this.weapon.setRangeMultiplier(1.5);
     
     // ビジュアルエフェクト
@@ -611,11 +609,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (enemies) {
       enemies.forEach((enemy: any) => {
         const bot = enemy.bot;
-        const distance = Phaser.Math.Distance.Between(x, y, bot.x, bot.y);
-        if (distance <= radius) {
-          // 距離に応じたダメージ減衰
-          const actualDamage = damage * (1 - distance / radius);
-          bot.takeDamage(actualDamage);
+        if (bot) {
+          const distance = Phaser.Math.Distance.Between(x, y, bot.x, bot.y);
+          if (distance <= radius) {
+            // 距離に応じたダメージ減衰
+            const actualDamage = damage * (1 - distance / radius);
+            bot.takeDamage(actualDamage);
+          }
         }
       });
     }
@@ -635,24 +635,26 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       .setDepth(1); // プレイヤーより下に表示
     
     // 地雷の当たり判定を設定
-    mine.body.setCircle(8);
-    mine.body.immovable = true;
+    if (mine.body) {
+      mine.body.setCircle(8);
+      mine.body.immovable = true;
+    }
     
     // 敵との衝突判定を追加
     const enemies = (this.scene as any).enemyBots;
     if (enemies) {
       enemies.forEach((enemy: any) => {
-        this.scene.physics.add.overlap(
-          mine, 
-          enemy.bot, 
-          () => {
-            // 地雷爆発
-            this.explode(mine.x, mine.y, 80, 80);
-            mine.destroy();
-          }, 
-          undefined, 
-          this
-        );
+        if (enemy && enemy.bot) {
+          this.scene.physics.add.overlap(
+            mine, 
+            enemy.bot, 
+            () => {
+              // 地雷爆発
+              this.explode(mine.x, mine.y, 80, 80);
+              mine.destroy();
+            }
+          );
+        }
       });
     }
     
@@ -701,13 +703,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       const enemies = (this.scene as any).enemyBots;
       if (enemies) {
         enemies.forEach((enemy: any) => {
-          const bot = enemy.bot;
-          const distance = Phaser.Math.Distance.Between(this.x, this.y, bot.x, bot.y);
-          if (distance <= blastRadius) {
-            // 距離に応じたダメージ減衰
-            const baseDamage = 150; // アルティメットは大ダメージ
-            const actualDamage = baseDamage * (1 - distance / blastRadius);
-            bot.takeDamage(actualDamage);
+          if (enemy && enemy.bot) {
+            const bot = enemy.bot;
+            const distance = Phaser.Math.Distance.Between(this.x, this.y, bot.x, bot.y);
+            if (distance <= blastRadius) {
+              // 距離に応じたダメージ減衰
+              const baseDamage = 150; // アルティメットは大ダメージ
+              const actualDamage = baseDamage * (1 - distance / blastRadius);
+              bot.takeDamage(actualDamage);
+            }
           }
         });
       }
@@ -723,6 +727,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.scene.sound.play('ultimate_activate');
     } catch (e) {}
   }
+  
+  // スキル使用時間とクールダウン関連のプロパティ
+  private skillLastUsed: number = 0;
+  private ultimateLastUsed: number = 0;
+  private skillCooldown: number = GameConfig.SKILL_COOLDOWN;
+  private ultimateCooldown: number = GameConfig.ULTIMATE_COOLDOWN;
   
   canUseSkill(): boolean {
     return (this.scene.time.now - this.skillLastUsed) >= this.skillCooldown;
@@ -808,6 +818,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   // 武器タイプを取得するゲッターメソッド
   getWeaponType(): WeaponType {
     return this.weapon.getType();
+  }
+
+  // キャラクタータイプを設定するメソッド
+  setCharacterType(type: CharacterType): void {
+    this.characterType = type;
+  }
+  
+  // キャラクタータイプを取得するメソッド
+  getCharacterType(): CharacterType {
+    return this.characterType;
   }
 
   // リソース開放

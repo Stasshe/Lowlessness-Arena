@@ -1,0 +1,68 @@
+{
+  "DEFAULT": {
+    "name": "バランス型",
+    "description": "バランスの取れた性能",
+    "color": "0xffffff",
+    "health": 100,
+    "speed": 220,
+    "weapon": "DEFAULT",
+    "skill": "SHIELD",
+    "skillDescription": "シールド - 2秒間ダメージを20%軽減",
+    "ultimateDescription": "エナジーブラスト - 中範囲の爆発攻撃"
+  },
+  "TANK": {
+    "name": "タンク",
+    "description": "HPが高いが移動速度が遅い",
+    "color": "0xff0000",
+    "health": 150,
+    "speed": 150,
+    "weapon": "SHOTGUN",
+    "skill": "SHIELD",
+    "skillDescription": "シールド - 3秒間ダメージを30%軽減",
+    "ultimateDescription": "バリケード - 周囲に壁を生成"
+  },
+  "SPEEDER": {
+    "name": "スピーダー",
+    "description": "素早いが耐久力が低い",
+    "color": "0x00ff00",
+    "health": 80,
+    "speed": 300,
+    "weapon": "MACHINEGUN",
+    "skill": "DASH",
+    "skillDescription": "ダッシュ - 指定方向に素早く移動",
+    "ultimateDescription": "高速連射 - 5秒間発射速度が3倍に"
+  },
+  "SNIPER": {
+    "name": "スナイパー",
+    "description": "長距離攻撃が得意",
+    "color": "0x0000ff",
+    "health": 90,
+    "speed": 200,
+    "weapon": "SNIPER",
+    "skill": "SCOPE",
+    "skillDescription": "スコープ - 射程と精度が向上",
+    "ultimateDescription": "ヘッドショット - 全方位に貫通弾を発射"
+  },
+  "THROWER": {
+    "name": "爆弾魔",
+    "description": "範囲攻撃が得意",
+    "color": "0xff00ff",
+    "health": 110,
+    "speed": 180,
+    "weapon": "THROWER",
+    "skill": "BOMB",
+    "skillDescription": "爆弾投げ - 爆発する弾を投げる",
+    "ultimateDescription": "爆破 - 広範囲に大爆発を起こす"
+  },
+  "HEALER": {
+    "name": "ヒーラー",
+    "description": "味方と自身を回復できる",
+    "color": "0x00ffaa",
+    "health": 100,
+    "speed": 200,
+    "weapon": "DEFAULT",
+    "skill": "HEAL",
+    "skillDescription": "回復 - HPを30%回復",
+    "ultimateDescription": "全体回復 - 範囲内の味方を完全回復"
+  }
+}

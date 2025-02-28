@@ -920,7 +920,11 @@ export class GameEffects {
     /**
      * 弾丸射撃の視覚効果
      */
-    showBulletEffect(startX: number, startY: number, endX: number, endY: number, speed: number = 1000): void {
+    showBulletEffect(startX: number, startY: number, endX: number, endY: number, bulletSpeed: number = 1000): void {
+      // 弾速を使用して弾道エフェクトのアニメーション時間を計算
+      const distance = Phaser.Math.Distance.Between(startX, startY, endX, endY);
+      const duration = distance / bulletSpeed * 1000; // 距離/弾速 * 1000(ミリ秒)
+      
       // 弾道ラインのトレイル
       const graphics = this.scene.add.graphics().setDepth(30);
       graphics.lineStyle(2, 0xffffff, 0.5);
@@ -929,11 +933,11 @@ export class GameEffects {
       // 着弾点のきらめき
       const impact = this.scene.add.circle(endX, endY, 5, 0xffffff, 0.8).setDepth(31);
       
-      // トレイルのフェードアウト
+      // トレイルのフェードアウト - 弾速に応じた時間
       this.scene.tweens.add({
         targets: graphics,
         alpha: 0,
-        duration: 200,
+        duration: Math.min(200, duration), // 最大200msに制限
         onComplete: () => {
           graphics.destroy();
         }

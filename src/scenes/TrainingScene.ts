@@ -348,6 +348,10 @@ export class TrainingScene extends Phaser.Scene {
     // モバイルの場合はジョイスティックを作成
     if (this.gameManager.isMobile()) {
       this.gameManager.createJoysticks();
+    } else {
+      // デスクトップの場合はマウスでの照準用に武器照準システムを初期化
+      this.gameManager.initializeWeaponAiming();
+      this.gameManager.updateWeaponAimingConfig();
     }
     
     // UI の作成
@@ -376,17 +380,8 @@ export class TrainingScene extends Phaser.Scene {
       this.scene.start('MainMenuScene');
     });
     
-    // 攻撃の設定（クリックかタップで攻撃）
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      // ジョイスティックの操作でなく、UIボタン上でもない場合のみ攻撃
-      const moveJoystick = this.gameManager.getMoveJoystick();
-      const skillJoystick = this.gameManager.getSkillJoystick();
-      if ((!moveJoystick || !moveJoystick.isBeingUsed(pointer)) && 
-          (!skillJoystick || !skillJoystick.isBeingUsed(pointer))) {
-        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-        this.gameManager.getPlayer().attack(worldPoint.x, worldPoint.y);
-      }
-    });
+    // 攻撃アクションのセットアップ
+    this.setupAttackAction();
     
     // キャラクター情報を表示
     this.displayCharacterInfo();
@@ -865,6 +860,27 @@ export class TrainingScene extends Phaser.Scene {
       const directionY = Number(this.gameManager.getCursors().down.isDown) - Number(this.gameManager.getCursors().up.isDown);
       this.gameManager.getPlayer().move(directionX, directionY);
     }
+    
+    // 武器の照準表示（マウスの場合）
+    if (!this.gameManager.isMobile()) {
+      const pointer = this.input.activePointer;
+      if (pointer.isDown) {
+        // マウスの世界座標を取得
+        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        
+        // 移動ジョイスティックとスキルジョイスティックの操作中でなければ照準を表示
+        const moveJoystick = this.gameManager.getMoveJoystick();
+        const skillJoystick = this.gameManager.getSkillJoystick();
+        if ((!moveJoystick || !moveJoystick.isBeingUsed(pointer)) && 
+            (!skillJoystick || !skillJoystick.isBeingUsed(pointer))) {
+          this.gameManager.showWeaponAiming(worldPoint.x, worldPoint.y);
+        }
+      } else {
+        // マウスを押していない場合は照準を消去
+        this.gameManager.clearWeaponAiming();
+      }
+    }
+    
     // キーボード入力でスキル使用
     if (this.gameManager.getCursors().space?.isDown && this.gameManager.getPlayer().canUseSkill()) {
       // スペースキーでスキル発動（前方向）
@@ -1120,5 +1136,19 @@ export class TrainingScene extends Phaser.Scene {
   destroy() {
     this.cleanupGame();
     this.physics.world.destroy();
+  }
+
+  // 攻撃アクションの設定（クリックかタップで攻撃）
+  private setupAttackAction(): void {
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // ジョイスティックの操作でなく、UIボタン上でもない場合のみ攻撃
+      const moveJoystick = this.gameManager.getMoveJoystick();
+      const skillJoystick = this.gameManager.getSkillJoystick();
+      if ((!moveJoystick || !moveJoystick.isBeingUsed(pointer)) && 
+          (!skillJoystick || !skillJoystick.isBeingUsed(pointer))) {
+        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        this.gameManager.getPlayer().attack(worldPoint.x, worldPoint.y);
+      }
+    });
   }
 }

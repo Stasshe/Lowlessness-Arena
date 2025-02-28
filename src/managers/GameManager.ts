@@ -8,7 +8,8 @@ import { InputController } from '../controllers/InputController';
 import { UI } from '../ui/UI';
 import { SkillUI } from '../ui/SkillUI';
 import { VirtualJoystick } from '../utils/VirtualJoystick';
-
+import { WeaponAiming, WeaponType } from '../utils/WeaponAiming';
+import { ProjectileCalculator } from '../utils/ProjectileCalculator';
 // WeaponTypeは実際に使われている場合はインポートを残す、使われていない場合は削除
 
 /**
@@ -33,6 +34,8 @@ export class GameManager {
   private skillCooldownDisplay?: Phaser.GameObjects.Graphics;
   private skillInfoText?: Phaser.GameObjects.Text;
   private weaponInfoText?: Phaser.GameObjects.Text;
+  private weaponAiming?: WeaponAiming;
+  private projectileCalculator!: ProjectileCalculator;
   
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -45,6 +48,9 @@ export class GameManager {
     
     // キーボード入力を設定
     this.cursors = this.scene.input.keyboard!.createCursorKeys();
+    
+    // 弾道計算機を初期化
+    this.projectileCalculator = new ProjectileCalculator();
   }
   
   /**
@@ -93,6 +99,10 @@ export class GameManager {
   createJoysticks(): void {
     this.moveJoystick = new VirtualJoystick(this.scene, false);
     this.skillJoystick = new VirtualJoystick(this.scene, true, this.player);
+    
+    // 武器照準システムを初期化
+    this.initializeWeaponAiming();
+    this.updateWeaponAimingConfig();
   }
   
   /**
@@ -447,6 +457,123 @@ export class GameManager {
   }
   
   /**
+   * 武器照準システムを初期化
+   */
+  initializeWeaponAiming(): void {
+    // すでに存在する場合は再利用
+    if (this.weaponAiming) return;
+    
+    this.weaponAiming = new WeaponAiming(this.scene, this.projectileCalculator, {
+      lineColor: 0xffffff,
+      fillColor: 0xff0000,
+      fillAlpha: 0.5,
+      lineWidth: 2,
+      maxDistance: 500,
+      showTrajectory: true
+    });
+    /*
+    // マップが読み込まれている場合は壁レイヤーを設定
+    if (this.map && this.map.getWalls()) {
+      this.weaponAiming.setWallLayer(this.map.getWalls());
+    }
+      */
+  }
+  
+  /**
+   * プレイヤーの武器タイプに基づいて照準設定を更新
+   */
+  updateWeaponAimingConfig(): void {
+    if (!this.weaponAiming || !this.player) return;
+    
+    const weaponType = this.player.getWeaponType() as unknown as WeaponType;
+    
+    switch(weaponType) {
+      case WeaponType.SNIPER:
+        this.weaponAiming.updateConfig({
+          lineColor: 0x00aaff,
+          fillColor: 0x0066cc,
+          maxDistance: 800,
+        });
+        break;
+      case WeaponType.SHOTGUN:
+        this.weaponAiming.updateConfig({
+          lineColor: 0xff3300,
+          fillColor: 0xff5500,
+          fillAlpha: 0.3,
+          maxDistance: 300,
+        });
+        break;
+      case WeaponType.THROWER:
+        this.weaponAiming.updateConfig({
+          lineColor: 0xff00ff,
+          fillColor: 0xff00ff,
+          maxDistance: 500,
+        });
+        break;
+      case WeaponType.BOMB:
+        this.weaponAiming.updateConfig({
+          lineColor: 0xff0000,
+          fillColor: 0xff0000,
+          maxDistance: 200,
+        });
+        break;
+      default:
+        this.weaponAiming.updateConfig({
+          lineColor: 0xffffff,
+          fillColor: 0xff0000,
+          maxDistance: 500,
+        });
+    }
+  }
+  
+  /**
+   * 指定した位置に対して武器照準を表示
+   */
+  showWeaponAiming(targetX: number, targetY: number): void {
+    if (!this.weaponAiming || !this.player) return;
+    
+    // プレイヤーからターゲットへの角度
+    const angle = Math.atan2(
+      targetY - this.player.y,
+      targetX - this.player.x
+    );
+    
+    // 距離
+    const distance = Phaser.Math.Distance.Between(
+      this.player.x, this.player.y,
+      targetX, targetY
+    );
+    
+    // プレイヤーの武器タイプを取得
+    const weaponType = this.player.getWeaponType() as unknown as WeaponType;
+    
+    // 武器照準を表示
+    this.weaponAiming.showAiming(
+      this.player.x,
+      this.player.y,
+      angle,
+      distance,
+      weaponType
+    );
+  }
+  
+  /**
+   * 武器照準を消去
+   */
+  clearWeaponAiming(): void {
+    if (this.weaponAiming) {
+      this.weaponAiming.clear();
+    }
+  }
+  
+  /**
+   * 武器照準を取得
+   */
+  getWeaponAiming(): WeaponAiming | undefined {
+    return this.weaponAiming;
+  }
+  
+  /**
    * リソースをクリーンアップ
    */
   destroy(): void {
@@ -503,5 +630,10 @@ export class GameManager {
     
     // エフェクトを解放
     this.gameEffects.destroy();
+    
+    // 武器照準システムを解放
+    if (this.weaponAiming) {
+      this.weaponAiming.getGraphics().destroy();
+    }
   }
 }

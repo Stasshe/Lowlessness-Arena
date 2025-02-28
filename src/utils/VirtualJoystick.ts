@@ -1,276 +1,248 @@
 import Phaser from 'phaser';
+import { WeaponAiming, WeaponType } from './WeaponAiming';
+import { Player } from '../objects/Player';
+import { ProjectileCalculator } from './ProjectileCalculator';
 
-/**
- * モバイル用の仮想ジョイスティッククラス
- * 移動操作とスキル発動方向指示の2種類のモードをサポート
- */
 export class VirtualJoystick {
   private scene: Phaser.Scene;
-  private base: Phaser.GameObjects.Graphics;
-  private stick: Phaser.GameObjects.Graphics;
-  private targetLine?: Phaser.GameObjects.Graphics;
-  private targetCircle?: Phaser.GameObjects.Graphics;
-  private trajectoryLine?: Phaser.GameObjects.Graphics;
-  private pointer: Phaser.Input.Pointer | null = null;
-  private vector: Phaser.Math.Vector2 = new Phaser.Math.Vector2();
-  private isForSkill: boolean;
-  private maxDistance: number = 64;
-  private readonly baseRadius: number = 32;
-  private readonly stickRadius: number = 16;
-  private player?: Phaser.GameObjects.GameObject;  // プレイヤー参照を追加
-
-  constructor(scene: Phaser.Scene, isForSkill: boolean = false, player?: Phaser.GameObjects.GameObject) {
+  private base: Phaser.GameObjects.Image;
+  private thumb: Phaser.GameObjects.Image;
+  private isSkillJoystick: boolean;
+  private player?: Player;
+  private weaponAiming?: WeaponAiming;
+  private pointerDown: boolean = false;
+  private activePointer: Phaser.Input.Pointer | null = null;
+  
+  constructor(scene: Phaser.Scene, isSkill: boolean = false, player?: Player) {
     this.scene = scene;
-    this.isForSkill = isForSkill;
-    this.player = player;  // プレイヤー参照を保存
-
-    const cameraWidth = scene.cameras.main.width;
-    const cameraHeight = scene.cameras.main.height;
-    const x = this.isForSkill ? cameraWidth - 100 : 100;
-    const y = cameraHeight - 100;
-
-    // ベース円を作成
-    this.base = scene.add.graphics()
+    this.isSkillJoystick = isSkill;
+    this.player = player;
+    
+    // 位置はスキルかどうかで変える
+    const posX = isSkill ? scene.cameras.main.width - 150 : 150;
+    const posY = scene.cameras.main.height - 150;
+    
+    // ベースとサムの画像を設定
+    this.base = scene.add.image(posX, posY, 'joystick-base')
       .setScrollFactor(0)
-      .setDepth(200);
-    this.base.setPosition(x, y);
-    this.drawBase();
-
-    // スティック円を作成
-    this.stick = scene.add.graphics()
+      .setAlpha(0.7)
+      .setDepth(1000);
+    
+    this.thumb = scene.add.image(posX, posY, 'joystick')
       .setScrollFactor(0)
-      .setDepth(201);
-    this.stick.setPosition(x, y);
-    this.drawStick();
-
-    if (this.isForSkill) {
-      // 方向線
-      this.targetLine = scene.add.graphics()
-        .setScrollFactor(0)
-        .setDepth(190);
-      
-      // ターゲットサークル
-      this.targetCircle = scene.add.graphics()
-        .setScrollFactor(0)
-        .setDepth(190);
-
-      // 放物線の軌道
-      this.trajectoryLine = scene.add.graphics()
-        .setScrollFactor(0)
-        .setDepth(190);
-    }
-
-    this.bindEvents();
-  }
-
-  private drawBase(): void {
-    this.base.clear();
-    this.base.lineStyle(2, 0x666666);
-    this.base.strokeCircle(0, 0, this.baseRadius);
-    this.base.fillStyle(0x333333, 0.3);
-    this.base.fillCircle(0, 0, this.baseRadius);
-  }
-
-  private drawStick(): void {
-    this.stick.clear();
-    this.stick.fillStyle(0x666666, 0.8);
-    this.stick.fillCircle(0, 0, this.stickRadius);
-  }
-
-  private bindEvents(): void {
-    this.scene.input.on('pointerdown', this.onPointerDown, this);
-    this.scene.input.on('pointermove', this.onPointerMove, this);
-    this.scene.input.on('pointerup', this.onPointerUp, this);
-  }
-  
-  private onPointerDown(pointer: Phaser.Input.Pointer): void {
-    const distance = Phaser.Math.Distance.Between(
-      pointer.x, pointer.y,
-      this.base.x, this.base.y
-    );
+      .setAlpha(0.9)
+      .setDepth(1001);
     
-    // ベースの近くでタッチした場合のみ反応
-    const activationRadius = this.isForSkill ? 100 : 70;
-    if (distance <= activationRadius) {
-      this.pointer = pointer;
-      this.updateStickPosition(pointer.x, pointer.y);
-      
-      // スキルジョイスティックの場合はターゲットラインとサークルを表示
-      if (this.isForSkill && this.targetLine && this.targetCircle) {
-        this.updateTargetVisuals();
-      }
-    }
-  }
-  
-  private onPointerMove(pointer: Phaser.Input.Pointer): void {
-    if (this.pointer && this.pointer.id === pointer.id) {
-      this.updateStickPosition(pointer.x, pointer.y);
-      
-      // スキルジョイスティックの場合はターゲットラインとサークルを更新
-      if (this.isForSkill && this.targetLine && this.targetCircle) {
-        this.updateTargetVisuals();
-      }
-    }
-  }
-  
-  private onPointerUp(pointer: Phaser.Input.Pointer): void {
-    if (this.pointer && this.pointer.id === pointer.id) {
-      // スティックを元の位置に戻す
-      this.resetStick();
-      this.pointer = null;
-      
-      // スキルジョイスティックの場合はターゲットラインとサークルを非表示
-      if (this.isForSkill && this.targetLine && this.targetCircle) {
-        this.targetLine.clear();
-        this.targetCircle.clear();
-      }
-    }
-  }
-  
-  private updateStickPosition(x: number, y: number): void {
-    const dx = x - this.base.x;
-    const dy = y - this.base.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    // 方向ベクトルを計算
-    if (distance === 0) {
-      this.vector.reset();
-    } else {
-      this.vector.x = dx / distance;
-      this.vector.y = dy / distance;
-    }
-    
-    // スティックの位置を更新（最大距離を制限）
-    if (distance <= this.maxDistance) {
-      this.stick.x = x;
-      this.stick.y = y;
-    } else {
-      this.stick.x = this.base.x + (dx / distance) * this.maxDistance;
-      this.stick.y = this.base.y + (dy / distance) * this.maxDistance;
-    }
-  }
-  
-  private resetStick(): void {
-    this.stick.x = this.base.x;
-    this.stick.y = this.base.y;
-    this.vector.reset();
-    
-    // スキルジョイスティックの場合はターゲットラインとサークルをクリア
-    if (this.isForSkill && this.targetLine && this.targetCircle) {
-      this.targetLine.clear();
-      this.targetCircle.clear();
-    }
-  }
-  
-  private updateTargetVisuals(): void {
-    if (!this.targetLine || !this.targetCircle || !this.trajectoryLine || !this.scene || !this.player) return;
-
-    this.targetLine.clear();
-    this.targetCircle.clear();
-    this.trajectoryLine.clear();
-
-    const length = this.vector.length();
-    if (length > 0.2) {
-      const power = Math.min(length, 1) * 300; // 投擲力（距離）
-      const angle = Math.atan2(this.vector.y, this.vector.x);
-      const gravity = 980; // 重力加速度
-      const points: { x: number, y: number }[] = [];
-
-      // プレイヤーの位置を基準に放物線を計算
-      const startX = (this.player as any).x;  // プレイヤーのX座標
-      const startY = (this.player as any).y;  // プレイヤーのY座標
-
-      // 放物線の軌道を計算
-      for (let t = 0; t < 1; t += 0.1) {
-        const x = startX + power * Math.cos(angle) * t;
-        const y = startY + (power * Math.sin(angle) * t) + (0.5 * gravity * t * t);
-        points.push({ x, y });
-      }
-
-      // 放物線の描画
-      this.trajectoryLine.lineStyle(2, 0x00ff00, 0.3);
-      this.trajectoryLine.beginPath();
-      points.forEach((point, index) => {
-        if (index === 0) {
-          this.trajectoryLine?.moveTo(point.x, point.y);
-        } else {
-          this.trajectoryLine?.lineTo(point.x, point.y);
-        }
+    // スキルジョイスティックの場合は照準システムを初期化
+    if (isSkill && player) {
+      const calculator = new ProjectileCalculator();
+      this.weaponAiming = new WeaponAiming(scene, calculator, {
+        lineColor: 0x00ffff,
+        fillColor: 0x00ffff,
+        fillAlpha: 0.3,
+        lineWidth: 2,
+        maxDistance: 500,
+        showTrajectory: true
       });
-      this.trajectoryLine.strokePath();
-
-      // 着弾点の表示
-      if (points.length > 0) {
-        const lastPoint = points[points.length - 1];
-        this.targetCircle.lineStyle(2, 0xff0000);
-        this.targetCircle.strokeCircle(lastPoint.x, lastPoint.y, 20);
-        
-        // 着弾エフェクトのアニメーション
-        const impactCircle = this.scene.add.circle(lastPoint.x, lastPoint.y, 5, 0xff0000);
-        this.scene.tweens.add({
-          targets: impactCircle,
-          scale: 2,
-          alpha: 0,
-          duration: 500,
-          onComplete: () => impactCircle.destroy()
-        });
+    }
+    
+    // イベントリスナーを設定
+    this.setupListeners();
+  }
+  
+  private setupListeners(): void {
+    // ポインターダウンイベント
+    this.scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // 既に別のポインターが使用中なら無視
+      if (this.pointerDown) return;
+      
+      // このジョイスティックのエリア内かチェック
+      const touchX = pointer.x;
+      const touchY = pointer.y;
+      const distance = Phaser.Math.Distance.Between(
+        this.base.x, this.base.y,
+        touchX, touchY
+      );
+      
+      // ジョイスティックの範囲内ならアクティブに
+      if (distance < this.base.displayWidth / 2) {
+        this.pointerDown = true;
+        this.activePointer = pointer;
+        this.updateJoystickPosition(touchX, touchY);
       }
+    });
+    
+    // ポインタームーブイベント
+    this.scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      // このジョイスティックがアクティブで、かつ同じポインターの場合のみ処理
+      if (this.pointerDown && this.activePointer && this.activePointer.id === pointer.id) {
+        this.updateJoystickPosition(pointer.x, pointer.y);
+        
+        // スキルジョイスティックかつプレイヤーが設定されている場合、照準を表示
+        if (this.isSkillJoystick && this.player && this.weaponAiming) {
+          const angle = Math.atan2(
+            pointer.y - this.base.y,
+            pointer.x - this.base.x
+          );
+          
+          const distance = Phaser.Math.Distance.Between(
+            this.base.x, this.base.y,
+            pointer.x, pointer.y
+          );
+          
+          // プレイヤーのウェポンタイプに基づいて照準を表示
+          const weaponType = this.player.getWeaponType() as unknown as WeaponType;
+          
+          this.weaponAiming.showAiming(
+            this.player.x, 
+            this.player.y, 
+            angle, 
+            distance,
+            weaponType
+          );
+        }
+      }
+    });
+    
+    // ポインターアップイベント
+    this.scene.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      // このジョイスティックのポインターなら解除
+      if (this.pointerDown && this.activePointer && this.activePointer.id === pointer.id) {
+        // スキルジョイスティックの場合、離した時にスキルを使用
+        if (this.isSkillJoystick && this.player && this.player.canUseSkill()) {
+          const angle = Math.atan2(
+            pointer.y - this.base.y,
+            pointer.x - this.base.x
+          );
+          
+          const distance = Phaser.Math.Distance.Between(
+            this.base.x, this.base.y,
+            pointer.x, pointer.y
+          );
+          
+          // 最小距離条件（誤操作防止）
+          if (distance > 20) {
+            const targetX = this.player.x + Math.cos(angle) * 100;
+            const targetY = this.player.y + Math.sin(angle) * 100;
+            this.player.useSkill(targetX, targetY);
+            
+            // 照準表示をクリア
+            if (this.weaponAiming) {
+              this.weaponAiming.clear();
+            }
+          }
+        }
+        
+        this.resetJoystick();
+      }
+    });
+  }
+  
+  private updateJoystickPosition(pointerX: number, pointerY: number): void {
+    // ジョイスティックの最大半径
+    const maxRadius = 50;
+    
+    // ベースからの距離と角度を計算
+    const distance = Phaser.Math.Distance.Between(
+      this.base.x, this.base.y,
+      pointerX, pointerY
+    );
+    const angle = Math.atan2(pointerY - this.base.y, pointerX - this.base.x);
+    
+    // 最大距離を制限
+    const limitedDistance = Math.min(distance, maxRadius);
+    
+    // サムの位置を更新
+    this.thumb.x = this.base.x + Math.cos(angle) * limitedDistance;
+    this.thumb.y = this.base.y + Math.sin(angle) * limitedDistance;
+  }
+  
+  private resetJoystick(): void {
+    // サムをベースの中央に戻す
+    this.thumb.x = this.base.x;
+    this.thumb.y = this.base.y;
+    this.pointerDown = false;
+    this.activePointer = null;
+    
+    // 照準表示をクリア
+    if (this.isSkillJoystick && this.weaponAiming) {
+      this.weaponAiming.clear();
     }
   }
   
-  getVector(): { x: number; y: number } {
-    return this.vector;
+  getVector(): Phaser.Math.Vector2 {
+    // ベースからサムへのベクトルを計算（-1.0〜1.0の範囲）
+    const dx = (this.thumb.x - this.base.x) / 50;
+    const dy = (this.thumb.y - this.base.y) / 50;
+    return new Phaser.Math.Vector2(dx, dy);
   }
   
-  getTargetWorldPosition(): { x: number; y: number } | null {
-    if (!this.isForSkill || !this.vector.length() || !this.player) return null;
-    
-    const length = this.vector.length();
-    const distance = length * this.maxDistance;
-    
-    // プレイヤーの位置を基準に計算
-    return {
-      x: (this.player as any).x + this.vector.x * distance,
-      y: (this.player as any).y + this.vector.y * distance
-    };
+  length(): number {
+    // ベースからサムまでの距離を取得
+    return Phaser.Math.Distance.Between(
+      this.base.x, this.base.y,
+      this.thumb.x, this.thumb.y
+    );
+  }
+  
+  angle(): number {
+    // ベースからサムへの角度を取得
+    return Math.atan2(
+      this.thumb.y - this.base.y,
+      this.thumb.x - this.base.x
+    );
+  }
+  
+  getBase(): Phaser.GameObjects.Image {
+    return this.base;
+  }
+  
+  getThumb(): Phaser.GameObjects.Image {
+    return this.thumb;
   }
   
   isBeingUsed(pointer: Phaser.Input.Pointer): boolean {
-    return this.pointer !== null && this.pointer.id === pointer.id;
+    // nullチェックを修正（booleanが期待される場所でnullを返さない）
+    if (!this.activePointer) return false;
+    return this.pointerDown && this.activePointer.id === pointer.id;
   }
   
-  getBase(): Phaser.GameObjects.Graphics {
-    return this.base;
+  getTargetWorldPosition(): Phaser.Math.Vector2 | null {
+    if (!this.player) return null;
+    
+    const angle = this.angle();
+    const distance = Math.min(this.length() * 5, 500); // スケーリングして適切な距離に
+    
+    return new Phaser.Math.Vector2(
+      this.player.x + Math.cos(angle) * distance,
+      this.player.y + Math.sin(angle) * distance
+    );
   }
-
-  length(): number {
-    return this.vector.length();
+  
+  getAiming(): WeaponAiming | undefined {
+    return this.weaponAiming;
   }
-
-  // プレイヤー参照を設定するメソッドを追加
-  setPlayer(player: Phaser.GameObjects.GameObject): void {
+  
+  /**
+   * プレイヤー参照を設定するためのメソッドを追加
+   */
+  setPlayer(player: Player): void {
     this.player = player;
   }
-
-  // リソース解放用のメソッドを追加
+  
   destroy(): void {
-    try {
-      // イベントリスナーを解除
-      this.scene.input.off('pointerdown', this.onPointerDown, this);
-      this.scene.input.off('pointermove', this.onPointerMove, this);
-      this.scene.input.off('pointerup', this.onPointerUp, this);
-      
-      // グラフィックスオブジェクトの削除
-      [this.base, this.stick, this.targetLine, this.targetCircle, this.trajectoryLine].forEach(obj => {
-        if (obj?.active && this.scene?.children.exists(obj)) {
-          obj.destroy();
-        }
-      });
-      
-      this.pointer = null;
-      this.vector.reset();
-    } catch (e) {
-      console.warn('VirtualJoystick destroy error:', e);
+    // イベントリスナーを削除
+    this.scene.input.off('pointerdown');
+    this.scene.input.off('pointermove');
+    this.scene.input.off('pointerup');
+    
+    // 表示要素を破棄
+    this.base.destroy();
+    this.thumb.destroy();
+    
+    // 照準表示も破棄
+    if (this.weaponAiming) {
+      this.weaponAiming.getGraphics().destroy();
     }
   }
 }

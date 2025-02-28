@@ -149,6 +149,7 @@ export class InputController {
     
     // スキルジョイスティックがあれば更新
     if (this.skillJoystick) {
+      // これでエラーが解消されます
       this.skillJoystick.setPlayer(player);
     }
   }

@@ -9,6 +9,8 @@ import { SoundManager } from '../utils/SoundManager';
 import { FirebaseManager } from '../firebase/FirebaseManager';
 import { GameEffects } from '../utils/GameEffects';
 import { Bullet } from '../objects/Bullet';
+import { ProjectileCalculator } from '../utils/ProjectileCalculator';
+import { WeaponAiming, WeaponType } from '../utils/WeaponAiming';
 
 export class OnlineGameScene extends Phaser.Scene {
   private player!: Player;
@@ -30,6 +32,8 @@ export class OnlineGameScene extends Phaser.Scene {
   private isGameOver: boolean = false;
   private lastUpdateTimestamp: number = 0;
   private positionUpdateInterval: number = 100; // 0.1秒ごとに位置を送信
+  private projectileCalculator!: ProjectileCalculator;
+  private weaponAiming!: WeaponAiming;
   //private playerCharacterType: CharacterType = CharacterType.DEFAULT;
   
   constructor() {
@@ -91,6 +95,17 @@ export class OnlineGameScene extends Phaser.Scene {
       this.moveJoystick = new VirtualJoystick(this, false);
       this.skillJoystick = new VirtualJoystick(this, true);
     }
+    
+    // 弾道計算機と武器照準システムを初期化
+    this.projectileCalculator = new ProjectileCalculator();
+    this.weaponAiming = new WeaponAiming(this, this.projectileCalculator, {
+      lineColor: 0xffffff,
+      fillColor: 0xff0000,
+      fillAlpha: 0.5,
+      lineWidth: 2,
+      maxDistance: 500,
+      showTrajectory: true
+    });
     
     // ゲーム状態の監視
     this.firebaseManager.subscribeToGameUpdates((gameData) => {
@@ -181,12 +196,48 @@ export class OnlineGameScene extends Phaser.Scene {
       if ((!this.moveJoystick || !this.moveJoystick.isBeingUsed(pointer)) && 
           (!this.skillJoystick || !this.skillJoystick.isBeingUsed(pointer))) {
         const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        
+        // 照準を表示
+        if (this.weaponAiming) {
+          const weaponType = this.player.getWeaponType() as unknown as WeaponType;
+          const angle = Math.atan2(
+            worldPoint.y - this.player.y,
+            worldPoint.x - this.player.x
+          );
+          const distance = Phaser.Math.Distance.Between(
+            this.player.x, this.player.y,
+            worldPoint.x, worldPoint.y
+          );
+          
+          this.weaponAiming.showAiming(
+            this.player.x,
+            this.player.y,
+            angle,
+            distance,
+            weaponType
+          );
+        }
+        
+        // 攻撃を実行
         this.player.attack(worldPoint.x, worldPoint.y);
         
         // 攻撃アクションを送信
         this.firebaseManager.sendPlayerAction('attack', worldPoint.x, worldPoint.y);
       }
     });
+    
+    // ポインターアップ時に照準を消去
+    this.input.on('pointerup', (_pointer: Phaser.Input.Pointer) => {
+      if (this.weaponAiming) {
+        this.weaponAiming.clear();
+      }
+    });
+    /*
+    // マップが読み込まれていれば、壁レイヤーを設定
+    if (this.map && this.weaponAiming) {
+      this.weaponAiming.setWallLayer(this.map.getWalls());
+    }
+      */
   }
   
   private endGame() {
@@ -452,6 +503,57 @@ export class OnlineGameScene extends Phaser.Scene {
     if (this.ui) {
       this.ui.update();
     }
+    
+    // スキルジョイスティック操作の改善
+    if (this.skillJoystick && this.weaponAiming) {
+      if (this.skillJoystick.isBeingUsed(this.input.activePointer)) {
+        const angle = this.skillJoystick.angle();
+        const distance = this.skillJoystick.length();
+        
+        if (distance > 0) {
+          // スキルの種類に合わせた照準表示
+          this.weaponAiming.showSkillAiming(
+            this.player.x,
+            this.player.y,
+            angle,
+            distance,
+            this.player.getSkillType()
+          );
+        }
+      }
+    }
+    
+    // マウス入力（モバイルでない場合）の処理
+    if (!this.isMobile && this.isGameStarted) {
+      const pointer = this.input.activePointer;
+      if (pointer.isDown && !this.isPointerOverUI(pointer)) {
+        // ジョイスティックを使用していない場合のみ照準を表示
+        if (!this.skillJoystick || !this.skillJoystick.isBeingUsed(pointer)) {
+          const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+          
+          // 照準を表示（続けて押している場合）
+          if (this.weaponAiming) {
+            const weaponType = this.player.getWeaponType() as unknown as WeaponType;
+            const angle = Math.atan2(
+              worldPoint.y - this.player.y,
+              worldPoint.x - this.player.x
+            );
+            const distance = Phaser.Math.Distance.Between(
+              this.player.x, this.player.y,
+              worldPoint.x, worldPoint.y
+            );
+            
+            this.weaponAiming.showAiming(
+              this.player.x,
+              this.player.y,
+              angle,
+              distance,
+              weaponType
+            );
+          }
+        }
+      }
+    }
   }
   
   shutdown() {
@@ -502,5 +604,24 @@ export class OnlineGameScene extends Phaser.Scene {
           }
         });
     }
+  }
+
+  // UIエレメント上にポインターがあるかをチェックするヘルパーメソッド
+  private isPointerOverUI(pointer: Phaser.Input.Pointer): boolean {
+    // UIエレメントのリストをチェック（型を明示的に指定）
+    const uiElements: Phaser.GameObjects.GameObject[] = [
+      // 例: ボタンやUIパネルなど
+    ];
+    
+    for (const element of uiElements) {
+      if ('getBounds' in element && typeof element.getBounds === 'function') {
+        const bounds = element.getBounds();
+        if (bounds && bounds.contains(pointer.x, pointer.y)) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
   }
 }

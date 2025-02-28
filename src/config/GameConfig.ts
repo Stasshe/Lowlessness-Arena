@@ -18,9 +18,12 @@ export class GameConfig {
   static readonly CHARACTER_SPEED: number = 200;
   static readonly CHARACTER_RADIUS: number = 20;
   
-  // タイルサイズ
+  // タイルサイズ - 高品質のグラフィックのために大きめのサイズに変更
   static readonly TILE_SIZE: number = 64;
   
   // 現在のゲームモード
   static currentMode: GameMode = GameMode.TRAINING;
+  
+  // アセット品質
+  static readonly HIGH_QUALITY: boolean = true;
 }

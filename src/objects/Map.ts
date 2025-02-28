@@ -5,11 +5,40 @@ import { Player } from './Player';
 export class Map {
   private scene: Phaser.Scene;
   private tileSize: number = GameConfig.TILE_SIZE;
-  private mapWidth: number = 30; // タイル単位
-  private mapHeight: number = 30; // タイル単位
   private walls: Phaser.Physics.Arcade.StaticGroup;
   private bushes: Phaser.Physics.Arcade.StaticGroup;
-  private spawnPoint: { x: number, y: number } = { x: 400, y: 400 };
+  private spawnPoints: { x: number, y: number }[] = [];
+  private mapData: string[] = [
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    'aggggggggggggggggggggggggggga',
+    'agggwwwggggggggrgggggwwwgggga',
+    'agggwgggggggggggggggggggwggga',
+    'agggwgggbbbgggggggbbbgggwggga',
+    'aggggggggggggwwwggggggggbggga',
+    'aggggggggggggwgwgggggggggggga',
+    'aggbbbggwggggwgwggggwgggbggga',
+    'agggggggwggggwgwggggwgggbggga',
+    'agggwgggwggggwgwggggwgggbggga',
+    'aggbwgggwggggggggggggggggggga',
+    'aggbwggggggggggggggggggwwwgga',
+    'aggbwggggggggggggggggggwgggga',
+    'aggbbggggggggggggggggggwgggga',
+    'aggggggggwwwgggggwwwggggbgbga',
+    'agggggggggggggggggggggggbgbga',
+    'agggwwwgggggggggggggwwwgggbga',
+    'agggggggggbbbgggbbbggggggggga',
+    'agggggggggbgbgggbgbggwwwwwgga',
+    'agggwwwgggbgbgggbgbggwggggwga',
+    'agggwgggggbbbgggbbbgggggggwga',
+    'agggwggggggggrgggggggwwwggwga',
+    'agggggggggggggggggggggggggwga',
+    'aggggggwwwwggggggwwwggggggwga',
+    'aggbbbggggggggggggggggwwwgwga',
+    'agggggggggggwwwgggggggggggwga',
+    'agggwwwggggggggggggggggggggga',
+    'agggggggggggggggggggggggrgwga',
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  ];
   
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -20,104 +49,78 @@ export class Map {
   }
   
   private createMap(): void {
-    // マップの背景（芝生）
-    for (let x = 0; x < this.mapWidth; x++) {
-      for (let y = 0; y < this.mapHeight; y++) {
+    // マップを文字データからビルド
+    for (let y = 0; y < this.mapData.length; y++) {
+      const row = this.mapData[y];
+      for (let x = 0; x < row.length; x++) {
+        const tile = row[x];
         const posX = x * this.tileSize + this.tileSize / 2;
         const posY = y * this.tileSize + this.tileSize / 2;
         
-        // 画面外でもレンダリングされるようにするための範囲チェック
-        if (
-          posX >= -this.tileSize && posX <= this.scene.cameras.main.width + this.tileSize &&
-          posY >= -this.tileSize && posY <= this.scene.cameras.main.height + this.tileSize
-        ) {
-          this.scene.add.image(posX, posY, 'grass');
+        switch (tile) {
+          case 'g': // 草
+            this.createGrass(posX, posY);
+            break;
+          case 'w': // 壁
+            this.createWall(posX, posY);
+            break;
+          case 'a': // 外枠の壁
+            this.createBoundary(posX, posY);
+            break;
+          case 'b': // 茂み
+            this.createGrass(posX, posY);
+            this.createBush(posX, posY);
+            break;
+          case 'r': // リスポーン地点
+            this.createGrass(posX, posY);
+            this.spawnPoints.push({ x: posX, y: posY });
+            
+            // リスポーン地点を視覚的に表示（デバッグ用、本番では非表示に）
+            if (GameConfig.DEBUG) {
+              this.scene.add.circle(posX, posY, this.tileSize / 4, 0x00ffff, 0.3);
+            }
+            break;
         }
       }
     }
-    
-    // 壁を配置（マップの外周）
-    for (let x = 0; x < this.mapWidth; x++) {
-      // 上下の壁
-      this.createWall(x * this.tileSize + this.tileSize / 2, this.tileSize / 2);
-      this.createWall(x * this.tileSize + this.tileSize / 2, this.mapHeight * this.tileSize - this.tileSize / 2);
-    }
-    
-    for (let y = 0; y < this.mapHeight; y++) {
-      // 左右の壁
-      this.createWall(this.tileSize / 2, y * this.tileSize + this.tileSize / 2);
-      this.createWall(this.mapWidth * this.tileSize - this.tileSize / 2, y * this.tileSize + this.tileSize / 2);
-    }
-    
-    // マップ中央に障害物を配置
-    this.createObstacles();
-    
-    // 茂みを配置
-    this.createBushes();
+  }
+  
+  private createGrass(x: number, y: number): void {
+    // 草のタイルを配置
+    this.scene.add.image(x, y, 'grass')
+      .setDisplaySize(this.tileSize, this.tileSize);
   }
   
   private createWall(x: number, y: number): void {
-    const wall = this.walls.create(x, y, 'wall');
-    wall.setImmovable(true);
-    wall.body.setSize(this.tileSize, this.tileSize);
+    // 壁のタイル
+    const wall = this.scene.add.image(x, y, 'wall')
+      .setDisplaySize(this.tileSize, this.tileSize);
+    
+    // 物理ボディを追加
+    const wallBody = this.walls.create(x, y, 'wall');
+    wallBody.setVisible(false); // 物理ボディは非表示
+    wallBody.setDisplaySize(this.tileSize, this.tileSize);
+    (wallBody.body as Phaser.Physics.Arcade.StaticBody).setSize(this.tileSize, this.tileSize);
+  }
+  
+  private createBoundary(x: number, y: number): void {
+    // 外枠の壁は見た目を変える
+    const boundary = this.scene.add.image(x, y, 'boundary')
+      .setDisplaySize(this.tileSize, this.tileSize);
+    
+    // 物理ボディを追加
+    const boundaryBody = this.walls.create(x, y, 'boundary');
+    boundaryBody.setVisible(false); // 物理ボディは非表示
+    boundaryBody.setDisplaySize(this.tileSize, this.tileSize);
+    (boundaryBody.body as Phaser.Physics.Arcade.StaticBody).setSize(this.tileSize, this.tileSize);
   }
   
   private createBush(x: number, y: number): void {
+    // 茂みのタイル
     const bush = this.bushes.create(x, y, 'bush');
     bush.setAlpha(0.7); // 半透明に設定
-    bush.setDepth(5); // 描画順序を設定
-  }
-  
-  private createObstacles(): void {
-    // マップ中央付近に壁を配置
-    const centerX = Math.floor(this.mapWidth / 2);
-    const centerY = Math.floor(this.mapHeight / 2);
-    
-    // 中央のL字型の壁
-    for (let i = -2; i <= 2; i++) {
-      this.createWall((centerX + i) * this.tileSize + this.tileSize / 2, centerY * this.tileSize + this.tileSize / 2);
-      
-      if (i >= 0) {
-        this.createWall(centerX * this.tileSize + this.tileSize / 2, (centerY + i) * this.tileSize + this.tileSize / 2);
-      }
-    }
-    
-    // その他の障害物（例）
-    this.createWall((centerX - 5) * this.tileSize + this.tileSize / 2, (centerY - 5) * this.tileSize + this.tileSize / 2);
-    this.createWall((centerX - 5) * this.tileSize + this.tileSize / 2, (centerY - 4) * this.tileSize + this.tileSize / 2);
-    this.createWall((centerX - 4) * this.tileSize + this.tileSize / 2, (centerY - 5) * this.tileSize + this.tileSize / 2);
-    
-    this.createWall((centerX + 5) * this.tileSize + this.tileSize / 2, (centerY + 5) * this.tileSize + this.tileSize / 2);
-    this.createWall((centerX + 5) * this.tileSize + this.tileSize / 2, (centerY + 4) * this.tileSize + this.tileSize / 2);
-    this.createWall((centerX + 4) * this.tileSize + this.tileSize / 2, (centerY + 5) * this.tileSize + this.tileSize / 2);
-    
-    // スポーンポイントを設定
-    this.spawnPoint = {
-      x: (centerX - 7) * this.tileSize,
-      y: (centerY - 7) * this.tileSize
-    };
-  }
-  
-  private createBushes(): void {
-    const centerX = Math.floor(this.mapWidth / 2);
-    const centerY = Math.floor(this.mapHeight / 2);
-    
-    // マップの各所に茂みを配置
-    this.createBush((centerX - 3) * this.tileSize + this.tileSize / 2, (centerY - 3) * this.tileSize + this.tileSize / 2);
-    this.createBush((centerX - 4) * this.tileSize + this.tileSize / 2, (centerY - 3) * this.tileSize + this.tileSize / 2);
-    this.createBush((centerX - 3) * this.tileSize + this.tileSize / 2, (centerY - 4) * this.tileSize + this.tileSize / 2);
-    
-    this.createBush((centerX + 3) * this.tileSize + this.tileSize / 2, (centerY + 3) * this.tileSize + this.tileSize / 2);
-    this.createBush((centerX + 4) * this.tileSize + this.tileSize / 2, (centerY + 3) * this.tileSize + this.tileSize / 2);
-    this.createBush((centerX + 3) * this.tileSize + this.tileSize / 2, (centerY + 4) * this.tileSize + this.tileSize / 2);
-    
-    // 大きめの茂み
-    for (let i = -1; i <= 1; i++) {
-      for (let j = -1; j <= 1; j++) {
-        this.createBush((centerX + i) * this.tileSize + this.tileSize / 2, (centerY + j - 6) * this.tileSize + this.tileSize / 2);
-        this.createBush((centerX + i - 6) * this.tileSize + this.tileSize / 2, (centerY + j) * this.tileSize + this.tileSize / 2);
-      }
-    }
+    bush.setDepth(5); // プレイヤーの下に表示
+    bush.setDisplaySize(this.tileSize, this.tileSize);
   }
   
   getWalls(): Phaser.Physics.Arcade.StaticGroup {
@@ -129,7 +132,18 @@ export class Map {
   }
   
   getSpawnPoint(): { x: number, y: number } {
-    return this.spawnPoint;
+    // ランダムなスポーンポイントを選択
+    if (this.spawnPoints.length > 0) {
+      const randomIndex = Math.floor(Math.random() * this.spawnPoints.length);
+      return this.spawnPoints[randomIndex];
+    }
+    
+    // スポーンポイントがない場合はデフォルト位置
+    return { x: 100, y: 100 };
+  }
+  
+  getSpawnPoints(): { x: number, y: number }[] {
+    return [...this.spawnPoints]; // コピーを返す
   }
   
   isInBush(player: Player): boolean {
@@ -140,7 +154,7 @@ export class Map {
       const bushSprite = bush as Phaser.Physics.Arcade.Sprite;
       const distance = Phaser.Math.Distance.Between(player.x, player.y, bushSprite.x, bushSprite.y);
       
-      if (distance < this.tileSize * 0.75) { // 茂みの近くにいる場合
+      if (distance < this.tileSize * 0.6) { // 茂みの近くにいる場合
         inBush = true;
       }
     });

@@ -30,9 +30,10 @@ export class TrainingScene extends Phaser.Scene {
   }
 
   private loadAssets(): void {
-    // マップ関連アセット
+    // マップ関連アセット - より高品質なアセットを指定
     this.load.image('grass', 'assets/tiles/grass.png');
     this.load.image('wall', 'assets/tiles/wall.png');
+    this.load.image('boundary', 'assets/tiles/boundary.png');
     this.load.image('bush', 'assets/tiles/bush.png');
     this.load.image('spawn', 'assets/tiles/spawn.png');
     

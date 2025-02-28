@@ -46,7 +46,7 @@ if (!fs.existsSync(placeholderPath)) {
 
 // 基本的な空のMP3ファイル（ヘッダーのみ）のBase64エンコード
 // これは再生可能な最小のMP3ファイルです
-const mp3Base64 = 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tAwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAeAAAbIAAODg4ODg4ODhQUFBQUFBQUGhoaGhoaGhogICAgICAgICYmJiYmJiYmLCwsLCwsLCwyMjIyMjIyMjg4ODg4ODg4Pj4+Pj4+Pj5ERERERERERkpKSkpKSkpKUFBQUFBQUFBWVlZWVlZWVlxcXFxcXFxcYmJiYmJiYmJoaGhoaGhoaG5ubm5ubm5udHR0dHR0dHR6eno=';
+const mp3Base64 = 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tAwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAeAAAbIAAODg4ODg4ODhQUFBQUFBQUGhoaGhoaGhogICAgICAgICYmJiYmJiYmLCwsLCwsLCwyMjIyMjIyMjg4ODg4ODg4Pj4+Pj4+Pj4+Pj5ERERERERERkpKSkpKSkpKUFBQUFBQUFBWVlZWVlZWVlxcXFxcXFxcYmJiYmJiYmJoaGhoaGhoaG5ubm5ubm5udHR0dHR0dHR6eno=';
 
 // 最小限のサンプルサウンドファイル
 const soundsDir = path.join(__dirname, '..', 'src/assets/sounds');
@@ -96,7 +96,7 @@ if (!fs.existsSync(logoPath) && fs.existsSync(placeholderPath)) {
 
 // マップタイル画像
 const tilesDir = path.join(__dirname, '..', 'src/assets/tiles');
-const tileFiles = ['grass.png', 'wall.png', 'bush.png', 'spawn.png'];
+const tileFiles = ['grass.png', 'wall.png', 'bush.png', 'spawn.png', 'boundary.png'];
 
 if (!fs.existsSync(tilesDir)) {
   fs.mkdirSync(tilesDir, { recursive: true });

@@ -1161,28 +1161,6 @@ export class TrainingScene extends Phaser.Scene {
       const directionY = Number(this.cursors.down.isDown) - Number(this.cursors.up.isDown);
       this.player.move(directionX, directionY);
     }
-    
-    // スキルジョイスティックでスキル使用
-    //to fix the bug of skill activation
-    if (this.skillJoystick) {
-      const skillVector = this.skillJoystick.getVector();
-      const vectorLength = this.skillJoystick.length();
-      
-      if (vectorLength > 0) {
-        if (!this.skillJoystick.isBeingUsed(this.input.activePointer)) {
-          // ジョイスティックを離した時にスキル発動
-          const targetPos = this.skillJoystick.getTargetWorldPosition();
-          if (targetPos && this.player.canUseSkill()) {
-            this.player.useSkill(targetPos.x, targetPos.y);
-            this.soundManager.playSfx('skill_activate');
-            
-            // スキルエフェクトを表示
-            this.showSkillEffect(this.player.getSkillType(), targetPos.x, targetPos.y);
-          }
-        }
-      }
-    }
-    
     // キーボード入力でスキル使用
     if (this.cursors.space?.isDown && this.player.canUseSkill()) {
       // スペースキーでスキル発動（前方向）

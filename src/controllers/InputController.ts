@@ -14,6 +14,7 @@ export class InputController {
   private onSkillUsed?: (targetX: number, targetY: number) => void;
   private onUltimateUsed?: () => void;
   private onAttack?: (targetX: number, targetY: number) => void;
+  //private activePointers: Set<number> = new Set(); // アクティブなポインターIDを追跡
   
   constructor(scene: Phaser.Scene, player: Player) {
     this.scene = scene;
@@ -34,6 +35,9 @@ export class InputController {
     
     // キーボードスキル入力の設定
     this.setupKeyboardInput();
+    
+    // 複数タッチを有効化
+    this.scene.input.addPointer(2); // デフォルトの1ポインター + 2追加で合計3つのタッチポイントを許可
   }
   
   private createVirtualJoysticks(): void {
@@ -46,10 +50,13 @@ export class InputController {
   
   private setupAttackInput(): void {
     this.scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      // ジョイスティックの操作でない場合のみ攻撃として処理
-      if ((!this.moveJoystick || !this.moveJoystick.isBeingUsed(pointer)) && 
-          (!this.skillJoystick || !this.skillJoystick.isBeingUsed(pointer))) {
-        
+      // すでにどちらかのジョイスティックが使用中のポインターなら無視
+      if (this.isPointerUsedByJoystick(pointer)) {
+        return;
+      }
+      
+      // ジョイスティックエリアでなければ攻撃処理
+      if (this.isAttackPointer(pointer)) {
         const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
         this.player.attack(worldPoint.x, worldPoint.y);
         
@@ -59,6 +66,45 @@ export class InputController {
         }
       }
     });
+  }
+  
+  // ポインターがジョイスティックによって使用されているか確認
+  private isPointerUsedByJoystick(pointer: Phaser.Input.Pointer): boolean {
+    if (this.moveJoystick && this.moveJoystick.isBeingUsed(pointer)) {
+      return true;
+    }
+    if (this.skillJoystick && this.skillJoystick.isBeingUsed(pointer)) {
+      return true;
+    }
+    return false;
+  }
+  
+  // このポインターが攻撃用かどうかを判断
+  private isAttackPointer(pointer: Phaser.Input.Pointer): boolean {
+    // ジョイスティックエリアでないかを確認
+    if (this.moveJoystick) {
+      const moveBase = this.moveJoystick.getBase();
+      const distToMove = Phaser.Math.Distance.Between(
+        moveBase.x, moveBase.y,
+        pointer.x, pointer.y
+      );
+      if (distToMove < moveBase.displayWidth) {
+        return false;
+      }
+    }
+    
+    if (this.skillJoystick) {
+      const skillBase = this.skillJoystick.getBase();
+      const distToSkill = Phaser.Math.Distance.Between(
+        skillBase.x, skillBase.y,
+        pointer.x, pointer.y
+      );
+      if (distToSkill < skillBase.displayWidth) {
+        return false;
+      }
+    }
+    
+    return true;
   }
   
   private setupKeyboardInput(): void {
@@ -99,7 +145,13 @@ export class InputController {
     // モバイルジョイスティックによる移動
     if (this.moveJoystick) {
       const moveVector = this.moveJoystick.getVector();
-      this.player.move(moveVector.x, moveVector.y);
+      // 使用中の場合のみ移動を適用
+      if (this.moveJoystick.isActive()) {
+        this.player.move(moveVector.x, moveVector.y);
+      } else {
+        // ジョイスティックが使われていない場合は停止
+        this.player.move(0, 0);
+      }
     } else {
       // キーボードによる移動
       const directionX = Number(this.cursors.right.isDown || this.scene.input.keyboard!.addKey('D').isDown) -

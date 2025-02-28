@@ -12,11 +12,13 @@ export class VirtualJoystick {
   private weaponAiming?: WeaponAiming;
   private pointerDown: boolean = false;
   private activePointer: Phaser.Input.Pointer | null = null;
+  private joystickId: string; // ジョイスティックの一意のID
   
   constructor(scene: Phaser.Scene, isSkill: boolean = false, player?: Player) {
     this.scene = scene;
     this.isSkillJoystick = isSkill;
     this.player = player;
+    this.joystickId = isSkill ? 'skillJoystick' : 'moveJoystick';
     
     // 位置はスキルかどうかで変える
     const posX = isSkill ? scene.cameras.main.width - 150 : 150;
@@ -26,7 +28,8 @@ export class VirtualJoystick {
     this.base = scene.add.image(posX, posY, 'joystick-base')
       .setScrollFactor(0)
       .setAlpha(0.7)
-      .setDepth(1000);
+      .setDepth(1000)
+      .setInteractive(); // 対話可能にする
     
     this.thumb = scene.add.image(posX, posY, 'joystick')
       .setScrollFactor(0)
@@ -51,30 +54,17 @@ export class VirtualJoystick {
   }
   
   private setupListeners(): void {
-    // ポインターダウンイベント
-    this.scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      // 既に別のポインターが使用中なら無視
-      if (this.pointerDown) return;
-      
-      // このジョイスティックのエリア内かチェック
-      const touchX = pointer.x;
-      const touchY = pointer.y;
-      const distance = Phaser.Math.Distance.Between(
-        this.base.x, this.base.y,
-        touchX, touchY
-      );
-      
-      // ジョイスティックの範囲内ならアクティブに
-      if (distance < this.base.displayWidth / 2) {
+    // ベースに直接ポインターダウンイベントをアタッチ
+    this.base.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (!this.pointerDown) {
         this.pointerDown = true;
         this.activePointer = pointer;
-        this.updateJoystickPosition(touchX, touchY);
+        this.updateJoystickPosition(pointer.x, pointer.y);
       }
     });
     
-    // ポインタームーブイベント
+    // グローバルなポインタームーブイベント
     this.scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      // このジョイスティックがアクティブで、かつ同じポインターの場合のみ処理
       if (this.pointerDown && this.activePointer && this.activePointer.id === pointer.id) {
         this.updateJoystickPosition(pointer.x, pointer.y);
         
@@ -104,9 +94,8 @@ export class VirtualJoystick {
       }
     });
     
-    // ポインターアップイベント
+    // グローバルなポインターアップイベント
     this.scene.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-      // このジョイスティックのポインターなら解除
       if (this.pointerDown && this.activePointer && this.activePointer.id === pointer.id) {
         // スキルジョイスティックの場合、離した時にスキルを使用
         if (this.isSkillJoystick && this.player && this.player.canUseSkill()) {
@@ -133,6 +122,13 @@ export class VirtualJoystick {
           }
         }
         
+        this.resetJoystick();
+      }
+    });
+    
+    // ポインターがキャンセルされた場合も対応
+    this.scene.input.on('pointercancel', (pointer: Phaser.Input.Pointer) => {
+      if (this.activePointer && this.activePointer.id === pointer.id) {
         this.resetJoystick();
       }
     });
@@ -202,9 +198,18 @@ export class VirtualJoystick {
   }
   
   isBeingUsed(pointer: Phaser.Input.Pointer): boolean {
-    // nullチェックを修正（booleanが期待される場所でnullを返さない）
     if (!this.activePointer) return false;
     return this.pointerDown && this.activePointer.id === pointer.id;
+  }
+  
+  // このジョイスティックが使われているか確認するメソッド
+  isActive(): boolean {
+    return this.pointerDown;
+  }
+  
+  // 使用中のポインターIDを取得するメソッド
+  getActivePointerId(): number | null {
+    return this.activePointer ? this.activePointer.id : null;
   }
   
   getTargetWorldPosition(): Phaser.Math.Vector2 | null {
@@ -232,9 +237,10 @@ export class VirtualJoystick {
   
   destroy(): void {
     // イベントリスナーを削除
-    this.scene.input.off('pointerdown');
+    this.base.off('pointerdown');
     this.scene.input.off('pointermove');
     this.scene.input.off('pointerup');
+    this.scene.input.off('pointercancel');
     
     // 表示要素を破棄
     this.base.destroy();
@@ -244,5 +250,10 @@ export class VirtualJoystick {
     if (this.weaponAiming) {
       this.weaponAiming.getGraphics().destroy();
     }
+  }
+  
+  // ジョイスティックの種類を取得
+  getJoystickId(): string {
+    return this.joystickId;
   }
 }

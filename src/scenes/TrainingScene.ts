@@ -5,7 +5,6 @@ import { CharacterType } from '../characters/CharacterFactory';
 import { MapType } from '../objects/Map';
 import { CharacterData } from '../utils/CharacterData';
 import { SkillType } from '../objects/Player';
-//import { WeaponType } from '../objects/Weapon';
 import { Bullet } from '../objects/Bullet';
 import { Player } from '../objects/Player';  // Playerクラスをインポート
 

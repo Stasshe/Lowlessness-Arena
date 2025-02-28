@@ -14,12 +14,16 @@ export class GameConfig {
   // デバッグモード
   static readonly DEBUG: boolean = false;
   
-  // キャラクター設定
-  static readonly CHARACTER_SPEED: number = 200;
+  // キャラクター設定 - 速度を調整（遅くする）
+  static readonly CHARACTER_SPEED: number = 150; // 以前は200
   static readonly CHARACTER_RADIUS: number = 20;
   
-  // タイルサイズ - 高品質のグラフィックのために大きめのサイズに変更
+  // タイルサイズ
   static readonly TILE_SIZE: number = 64;
+  
+  // スキル設定
+  static readonly SKILL_COOLDOWN: number = 5000; // 5秒
+  static readonly ULTIMATE_COOLDOWN: number = 15000; // 15秒
   
   // 現在のゲームモード
   static currentMode: GameMode = GameMode.TRAINING;

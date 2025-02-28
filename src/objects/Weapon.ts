@@ -26,6 +26,7 @@ export class Weapon {
   private stats: WeaponStats;
   private bullets: Phaser.Physics.Arcade.Group;
   private lastFired: number = 0;
+  private rangeMultiplier: number = 1.0; // スキル効果用の射程倍率
   
   constructor(scene: Phaser.Scene, owner: Player, type: string = 'default') {
     this.scene = scene;
@@ -147,12 +148,36 @@ export class Weapon {
         angle, 
         this.stats.speed, 
         this.stats.damage, 
-        this.stats.range
+        this.stats.range * this.rangeMultiplier // 射程に倍率を適用
       );
     }
   }
   
   getBullets(): Phaser.Physics.Arcade.Group {
     return this.bullets;
+  }
+  
+  // スキル効果を適用するメソッド
+  applySkillEffect(effectType: string, value: number): void {
+    switch (effectType) {
+      case 'rangeMultiplier':
+        this.rangeMultiplier = value;
+        break;
+      // 他のスキル効果もここに追加可能
+      default:
+        console.warn('未知のスキル効果タイプ:', effectType);
+    }
+  }
+
+  getRange(): number {
+    return this.stats.range;
+  }
+  
+  setRangeMultiplier(value: number): void {
+    this.rangeMultiplier = value;
+  }
+  
+  resetRangeMultiplier(): void {
+    this.rangeMultiplier = 1.0;
   }
 }

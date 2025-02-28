@@ -19,9 +19,21 @@ export class TrainingScene extends Phaser.Scene {
   private isMobile: boolean = false;
   private soundManager!: SoundManager;
   private characterFactory!: CharacterFactory;
+  private moveJoystick?: VirtualJoystick;
+  private skillJoystick?: VirtualJoystick;
+  private selectedCharacterType: CharacterType = CharacterType.DEFAULT;
+  private characterSelectUI?: Phaser.GameObjects.Container;
+  private skillCooldownDisplay?: Phaser.GameObjects.Graphics;
   
   constructor() {
     super('TrainingScene');
+  }
+
+  init(data: any) {
+    // シーンの初期化時にデータを受け取れるようにする
+    if (data && data.characterType) {
+      this.selectedCharacterType = data.characterType;
+    }
   }
 
   preload() {
@@ -120,6 +132,9 @@ export class TrainingScene extends Phaser.Scene {
     .on('pointerdown', () => {
       this.scene.start('MainMenuScene');
     });
+
+    // キャラクター選択メニューを表示
+    this.showCharacterSelect();
   }
 
   private createEnemyBots(): void {
@@ -235,17 +250,276 @@ export class TrainingScene extends Phaser.Scene {
     });
   }
 
+  private showCharacterSelect(): void {
+    // キャラクター選択UIを作成
+    this.characterSelectUI = this.add.container(this.cameras.main.width / 2, 200);
+    
+    // タイトル
+    const title = this.add.text(0, -100, 'キャラクター選択', { 
+      fontSize: '32px', 
+      color: '#ffffff',
+      fontFamily: 'Arial, sans-serif'
+    }).setOrigin(0.5);
+    this.characterSelectUI.add(title);
+    
+    // 使用可能なキャラクター一覧
+    const characters = [
+      { type: CharacterType.DEFAULT, name: 'デフォルト', color: 0xffffff },
+      { type: CharacterType.TANK, name: 'タンク', color: 0xff0000 },
+      { type: CharacterType.SPEEDER, name: 'スピーダー', color: 0x00ff00 },
+      { type: CharacterType.SNIPER, name: 'スナイパー', color: 0x0000ff },
+      { type: CharacterType.THROWER, name: '爆弾魔', color: 0xff00ff }
+    ];
+    
+    // キャラクターボタンを横に並べる
+    const buttonWidth = 120;
+    const spacing = 20;
+    const startX = -((characters.length - 1) * (buttonWidth + spacing)) / 2;
+    
+    characters.forEach((char, index) => {
+      // キャラクターの円形アイコン
+      const x = startX + index * (buttonWidth + spacing);
+      const bg = this.add.circle(x, 0, 50, char.color, 0.8)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => this.selectCharacter(char.type));
+      
+      const label = this.add.text(x, 60, char.name, {
+        fontSize: '18px',
+        color: '#ffffff'
+      }).setOrigin(0.5);
+      
+      // 選択中のキャラクターを強調表示
+      if (char.type === this.selectedCharacterType) {
+        this.add.circle(x, 0, 55, 0xffff00, 0)
+          .setStrokeStyle(4, 0xffff00, 1);
+      }
+      
+      this.characterSelectUI.add([bg, label]);
+    });
+    
+    // スタートボタン
+    const startButton = this.add.rectangle(0, 150, 200, 60, 0x00aa00)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => {
+        // サウンドを鳴らし、UIを非表示にしてゲーム開始
+        this.soundManager.playSfx('button_click');
+        this.startTraining();
+      });
+    
+    const startText = this.add.text(0, 150, 'トレーニング開始', {
+      fontSize: '24px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    
+    this.characterSelectUI.add([startButton, startText]);
+    
+    // キャラクター選択UIをカメラに追従させる
+    this.characterSelectUI.setScrollFactor(0).setDepth(1000);
+  }
+  
+  private selectCharacter(type: CharacterType): void {
+    this.selectedCharacterType = type;
+    this.soundManager.playSfx('button_click');
+    
+    // 選択UIを更新するため、いったん削除して再表示
+    if (this.characterSelectUI) {
+      this.characterSelectUI.destroy();
+    }
+    this.showCharacterSelect();
+  }
+  
+  private startTraining(): void {
+    // UIを非表示
+    if (this.characterSelectUI) {
+      this.characterSelectUI.destroy();
+      this.characterSelectUI = undefined;
+    }
+    
+    // モバイルデバイス判定
+    this.isMobile = !this.sys.game.device.os.desktop;
+    
+    // サウンドマネージャーの初期化
+    this.soundManager = new SoundManager(this);
+    
+    // キャラクターファクトリーの初期化
+    this.characterFactory = new CharacterFactory(this);
+    
+    // マップの作成
+    this.map = new Map(this);
+    
+    // プレイヤーの作成（選択したキャラクタータイプを使用）
+    const spawnPoint = this.map.getSpawnPoint();
+    this.player = this.characterFactory.createCharacter(this.selectedCharacterType, spawnPoint.x, spawnPoint.y);
+    
+    // 敵ボットの作成
+    this.createEnemyBots();
+    
+    // カメラの設定
+    this.cameras.main.startFollow(this.player);
+    this.cameras.main.setZoom(1);
+    
+    // 衝突判定の設定
+    this.setupCollisions();
+    
+    // キーボード入力の設定
+    this.cursors = this.input.keyboard!.createCursorKeys();
+    
+    // ジョイスティックの作成
+    this.moveJoystick = new VirtualJoystick(this, false); // 移動用
+    this.skillJoystick = new VirtualJoystick(this, true); // スキル用
+    
+    // UI の作成
+    this.ui = new UI(this, this.player);
+    
+    // スキルクールダウン表示
+    this.createSkillCooldownDisplay();
+    
+    // バックボタン（メニューに戻る）
+    const backButton = this.add.text(16, 16, 'メニューに戻る', { 
+      fontSize: '18px', 
+      color: '#ffffff',
+      backgroundColor: '#000000',
+      padding: { x: 10, y: 5 }
+    })
+    .setScrollFactor(0)
+    .setDepth(100)
+    .setInteractive({ useHandCursor: true })
+    .on('pointerdown', () => {
+      this.scene.start('MainMenuScene');
+    });
+    
+    // BGM再生
+    this.soundManager.playMusic('game_bgm');
+  }
+  
+  private createSkillCooldownDisplay(): void {
+    // スキルクールダウンを表示するグラフィック要素
+    this.skillCooldownDisplay = this.add.graphics()
+      .setScrollFactor(0)
+      .setDepth(200);
+    
+    // 更新イベントを設定
+    this.time.addEvent({
+      delay: 100, // 100ms毎に更新
+      callback: this.updateSkillCooldownDisplay,
+      callbackScope: this,
+      loop: true
+    });
+  }
+  
+  private updateSkillCooldownDisplay(): void {
+    if (!this.skillCooldownDisplay || !this.player) return;
+    
+    this.skillCooldownDisplay.clear();
+    
+    // スキルのクールダウン情報を取得
+    const skillCooldown = this.player.getSkillCooldownPercent();
+    const ultimateCooldown = this.player.getUltimateCooldownPercent();
+    
+    // スキルジョイスティックのベース位置
+    const baseX = this.skillJoystick?.getBase().x ?? (this.cameras.main.width - 150);
+    const baseY = this.skillJoystick?.getBase().y ?? (this.cameras.main.height - 150);
+    
+    // スキルクールダウンの円を描画（スキルジョイスティックの周り）
+    if (skillCooldown < 1) {
+      // 円弧を描画（クールダウン中は灰色で表示）
+      this.skillCooldownDisplay.lineStyle(8, 0x666666, 0.8);
+      this.skillCooldownDisplay.beginPath();
+      this.skillCooldownDisplay.arc(
+        baseX, baseY, 70, 
+        -Math.PI / 2, // 開始角度（上から）
+        -Math.PI / 2 + Math.PI * 2 * skillCooldown, // 終了角度
+        false
+      );
+      this.skillCooldownDisplay.strokePath();
+    } else {
+      // クールダウン完了時は青色で表示
+      this.skillCooldownDisplay.lineStyle(8, 0x00ffff, 0.8);
+      this.skillCooldownDisplay.beginPath();
+      this.skillCooldownDisplay.arc(
+        baseX, baseY, 70, 
+        -Math.PI / 2, 
+        Math.PI * 1.5, 
+        false
+      );
+      this.skillCooldownDisplay.strokePath();
+    }
+    
+    // アルティメットクールダウンの表示（小さいUI要素として表示）
+    const ultimateX = this.cameras.main.width - 50;
+    const ultimateY = 50;
+    
+    // 背景の円
+    this.skillCooldownDisplay.fillStyle(0x000000, 0.5);
+    this.skillCooldownDisplay.fillCircle(ultimateX, ultimateY, 25);
+    
+    if (ultimateCooldown < 1) {
+      // クールダウン中は部分的に表示
+      this.skillCooldownDisplay.fillStyle(0xff6600, 0.8);
+      this.skillCooldownDisplay.slice(
+        ultimateX, ultimateY, 25,
+        -Math.PI / 2,
+        -Math.PI / 2 + Math.PI * 2 * ultimateCooldown,
+        true
+      );
+      this.skillCooldownDisplay.fillPath();
+    } else {
+      // クールダウン完了時は完全に表示
+      this.skillCooldownDisplay.fillStyle(0xff6600, 0.8);
+      this.skillCooldownDisplay.fillCircle(ultimateX, ultimateY, 25);
+    }
+  }
+
   update(time: number, delta: number) {
-    // プレイヤー移動処理
-    if (this.isMobile && this.joystick) {
-      // モバイル: ジョイスティックの入力で移動
-      const joyVector = this.joystick.getVector();
-      this.player.move(joyVector.x, joyVector.y);
+    if (!this.player) return; // プレイヤーがまだ作成されていなければスキップ
+    
+    // プレイヤー移動処理 - タッチスクリーンでは移動ジョイスティックを使用
+    if (this.moveJoystick) {
+      const moveVector = this.moveJoystick.getVector();
+      this.player.move(moveVector.x, moveVector.y);
     } else {
       // デスクトップ: キーボードの入力で移動
       const directionX = Number(this.cursors.right.isDown) - Number(this.cursors.left.isDown);
       const directionY = Number(this.cursors.down.isDown) - Number(this.cursors.up.isDown);
       this.player.move(directionX, directionY);
+    }
+    
+    // スキルジョイスティックでスキル使用
+    if (this.skillJoystick) {
+      const skillVector = this.skillJoystick.getVector();
+      // 代わりにVirtualJoystickのlengthメソッドを使用するか、
+      // もしくはベクトルのx,y成分からベクトルの長さを計算
+      const vectorLength = Math.sqrt(skillVector.x * skillVector.x + skillVector.y * skillVector.y);
+      
+      if (vectorLength > 0) {
+        // スキルジョイスティックが操作されている場合
+        const targetPos = this.skillJoystick.getTargetWorldPosition();
+        if (targetPos) {
+          // スキルの方向が設定された状態で操作が終了したらスキル発動
+          if (!this.skillJoystick.isBeingUsed(this.input.activePointer) && 
+              this.player.canUseSkill()) {
+            this.player.useSkill(targetPos.x, targetPos.y);
+            this.soundManager.playSfx('skill_activate');
+          }
+        }
+      }
+    }
+    
+    // キーボード入力でスキル使用
+    if (this.cursors.space?.isDown && this.player.canUseSkill()) {
+      // スペースキーでスキル発動（前方向）
+      const angle = this.player.rotation;
+      const targetX = this.player.x + Math.cos(angle) * 200;
+      const targetY = this.player.y + Math.sin(angle) * 200;
+      this.player.useSkill(targetX, targetY);
+      this.soundManager.playSfx('skill_activate');
+    }
+    
+    // アルティメットスキル発動（Qキー）
+    if (Phaser.Input.Keyboard.JustDown(this.input.keyboard!.addKey('Q')) && 
+        this.player.canUseUltimate()) {
+      this.player.useUltimate();
+      this.soundManager.playSfx('ultimate_activate');
     }
     
     // ボットAIの更新
@@ -254,13 +528,15 @@ export class TrainingScene extends Phaser.Scene {
     });
     
     // プレイヤーと茂みの判定
-    if (this.map.isInBush(this.player)) {
+    if (this.map && this.map.isInBush(this.player)) {
       this.player.enterBush();
     } else {
       this.player.exitBush();
     }
     
     // UI更新
-    this.ui.update();
+    if (this.ui) {
+      this.ui.update();
+    }
   }
 }

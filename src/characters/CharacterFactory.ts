@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Player } from '../objects/Player';
 import { GameConfig } from '../config/GameConfig';
+import { SkillType } from '../objects/Player';
 
 export enum CharacterType {
   DEFAULT = 'default',
@@ -51,7 +52,7 @@ export class CharacterFactory {
     // デフォルトのキャラクター：バランスの良いステータス
     player.setMaxHealth(100);
     player.setWeapon('default');
-    player.setSpecialAbility('shield');
+    player.setSpecialAbility(SkillType.SHIELD);
     
     // 見た目の設定
     player.setTint(0xFFFFFF); // 白色
@@ -62,7 +63,7 @@ export class CharacterFactory {
     player.setMaxHealth(150);
     player.setSpeed(GameConfig.CHARACTER_SPEED * 0.8);
     player.setWeapon('shotgun');
-    player.setSpecialAbility('shield');
+    player.setSpecialAbility(SkillType.SHIELD);
     
     // 見た目の設定
     player.setTint(0xFF0000); // 赤色
@@ -74,7 +75,7 @@ export class CharacterFactory {
     player.setMaxHealth(80);
     player.setSpeed(GameConfig.CHARACTER_SPEED * 1.3);
     player.setWeapon('machinegun');
-    player.setSpecialAbility('dash');
+    player.setSpecialAbility(SkillType.DASH);
     
     // 見た目の設定
     player.setTint(0x00FF00); // 緑色
@@ -86,7 +87,7 @@ export class CharacterFactory {
     player.setMaxHealth(90);
     player.setSpeed(GameConfig.CHARACTER_SPEED * 0.9);
     player.setWeapon('sniper');
-    player.setSpecialAbility('scope');
+    player.setSpecialAbility(SkillType.SCOPE);
     
     // 見た目の設定
     player.setTint(0x0000FF); // 青色
@@ -97,7 +98,7 @@ export class CharacterFactory {
     player.setMaxHealth(110);
     player.setSpeed(GameConfig.CHARACTER_SPEED * 1.1);
     player.setWeapon('default');
-    player.setSpecialAbility('heal');
+    player.setSpecialAbility(SkillType.HEAL);
     
     // 見た目の設定
     player.setTint(0xFFFF00); // 黄色
@@ -108,7 +109,7 @@ export class CharacterFactory {
     player.setMaxHealth(100);
     player.setSpeed(GameConfig.CHARACTER_SPEED);
     player.setWeapon('thrower');
-    player.setSpecialAbility('minefield');
+    player.setSpecialAbility(SkillType.MINEFIELD);
     
     // 見た目の設定
     player.setTint(0xFF00FF); // 紫色

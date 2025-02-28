@@ -10,6 +10,8 @@
 # placeholder/default.png を作成
 mkdir -p src/assets/placeholder
 convert -size 32x32 xc:#FFFFFF src/assets/placeholder/default.png
+convert -size 32x32 xc:#FF33AF src/assets/tiles/wall.png
+convert -size 32x32 xc:#0FF3AF src/assets/tiles/grass.png
 
 # 他の必要なディレクトリを作成
 mkdir -p src/assets/{characters,sounds,tiles,ui,weapons}

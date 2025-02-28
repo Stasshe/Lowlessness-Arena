@@ -157,11 +157,10 @@ export class LobbyScene extends Phaser.Scene {
     // キャラクター選択ボタン
     const characterTypes = [
       { type: CharacterType.DEFAULT, name: 'デフォルト' },
-      { type: CharacterType.TANK, name: 'タンク' },
-      { type: CharacterType.SPEEDER, name: 'スピーダー' },
+      { type: CharacterType.KNIGHT, name: 'ナイト' },
+      { type: CharacterType.TANKER, name: 'タンク' },
       { type: CharacterType.SNIPER, name: 'スナイパー' },
-      { type: CharacterType.HEALER, name: 'ヒーラー' },
-      { type: CharacterType.THROWER, name: '投擲兵' }
+      { type: CharacterType.BOMBER, name: 'ボンバー' }
     ];
     
     // キャラクターボタンを横に並べる

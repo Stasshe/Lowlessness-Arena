@@ -1,6 +1,6 @@
 import { CharacterType } from '../characters/CharacterFactory';
 import { SkillType } from '../objects/Player';
-import { WeaponType } from '../objects/Weapon';
+import { WeaponType } from '../utils/WeaponTypes';
 import characterData from '../data/characters.json';
 
 export interface CharacterStats {
@@ -11,14 +11,16 @@ export interface CharacterStats {
   speed: number;
   weapon: WeaponType;
   skill: SkillType;
+  skillName: string;
   skillDescription: string;
+  ultimateName: string;
   ultimateDescription: string;
 }
 
 export class CharacterData {
   // JSONからキャラクターデータを取得
   static getCharacterData(type: CharacterType): CharacterStats {
-    const data = characterData[type] as CharacterStats;
+    const data = characterData[type as keyof typeof characterData] as CharacterStats;
     if (!data) {
       throw new Error(`キャラクタータイプ ${type} が見つかりません`);
     }
@@ -71,26 +73,35 @@ export class CharacterData {
 
   // スキル名を取得
   static getSkillName(skillType: SkillType): string {
-    const skillNames: Record<SkillType, string> = {
-      [SkillType.NONE]: 'なし',
-      [SkillType.SHIELD]: 'シールド',
-      [SkillType.DASH]: 'ダッシュ',
-      [SkillType.SCOPE]: 'スコープ',
-      [SkillType.HEAL]: '回復',
-      [SkillType.BOMB]: '爆弾投げ',
-      [SkillType.MINEFIELD]: '地雷設置'
+    const skillNames: Record<string, string> = {
+      'none': 'なし',
+      'shield': 'シールド',
+      'dash': 'ダッシュ',
+      'scope': 'スコープ',
+      'heal': '回復',
+      'bomb': '爆弾投げ',
+      'minefield': '地雷設置',
+      'gatling': 'ガトリング',
+      'dash_shield': 'シールドダッシュ',
+      'triple_arrow': 'トリプルアロー',
+      'pierce_shot': 'ピアスショット'
     };
     return skillNames[skillType] || 'なし';
   }
 
   // 武器名を取得
   static getWeaponName(weaponType: WeaponType): string {
-    const weaponNames: Record<WeaponType, string> = {
-      [WeaponType.DEFAULT]: 'ハンドガン',
-      [WeaponType.SHOTGUN]: 'ショットガン',
-      [WeaponType.SNIPER]: 'スナイパーライフル',
-      [WeaponType.MACHINEGUN]: 'マシンガン',
-      [WeaponType.THROWER]: 'グレネードランチャー'
+    const weaponNames: Record<string, string> = {
+      'DEFAULT': 'ハンドガン',
+      'PISTOL': 'ピストル',
+      'SHOTGUN': 'ショットガン',
+      'SNIPER': 'スナイパーライフル',
+      'MACHINEGUN': 'マシンガン',
+      'THROWER': 'グレネードランチャー',
+      'BOW': '弓',
+      'SLING': '投石',
+      'BOMB': '爆弾',
+      'MELEE': '近接武器'
     };
     return weaponNames[weaponType] || 'ハンドガン';
   }

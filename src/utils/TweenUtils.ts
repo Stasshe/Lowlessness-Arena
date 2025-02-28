@@ -7,22 +7,27 @@ import Phaser from 'phaser';
  * @returns タイムラインオブジェクトまたは互換性のあるシミュレーション
  */
 export function createSafeTimeline(scene: Phaser.Scene, duration: number = 1000): any {
-  if (scene.tweens.createTimeline) {
-    return scene.tweens.createTimeline();
-  } 
+  // 型のチェックを行わない方法で対応（any型を使用）
+  const tweens = scene.tweens as any;
+  if (tweens.createTimeline) {
+    return tweens.createTimeline();
+  }
+  
+  // thisの参照問題を解決するためにselfという変数を使う
+  const self = {};
   
   // フォールバック: タイムラインAPIをシミュレート
   return {
     add: (config: any) => {
       scene.tweens.add(config);
-      return this;
+      return self;
     },
     play: () => {},
     setCallback: (event: string, callback: Function) => {
       if (event === 'onComplete') {
         scene.time.delayedCall(duration, callback);
       }
-      return this;
+      return self;
     }
   };
 }

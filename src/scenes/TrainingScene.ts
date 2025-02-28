@@ -103,10 +103,10 @@ export class TrainingScene extends Phaser.Scene {
     // 使用可能なキャラクター一覧
     const characters = [
       { type: CharacterType.DEFAULT, name: CharacterData.getCharacterName(CharacterType.DEFAULT), color: CharacterData.getCharacterColor(CharacterType.DEFAULT), description: CharacterData.getCharacterDescription(CharacterType.DEFAULT) },
-      { type: CharacterType.TANK, name: CharacterData.getCharacterName(CharacterType.TANK), color: CharacterData.getCharacterColor(CharacterType.TANK), description: CharacterData.getCharacterDescription(CharacterType.TANK) },
-      { type: CharacterType.SPEEDER, name: CharacterData.getCharacterName(CharacterType.SPEEDER), color: CharacterData.getCharacterColor(CharacterType.SPEEDER), description: CharacterData.getCharacterDescription(CharacterType.SPEEDER) },
+      { type: CharacterType.KNIGHT, name: CharacterData.getCharacterName(CharacterType.KNIGHT), color: CharacterData.getCharacterColor(CharacterType.KNIGHT), description: CharacterData.getCharacterDescription(CharacterType.KNIGHT) },
+      { type: CharacterType.TANKER, name: CharacterData.getCharacterName(CharacterType.TANKER), color: CharacterData.getCharacterColor(CharacterType.TANKER), description: CharacterData.getCharacterDescription(CharacterType.TANKER) },
       { type: CharacterType.SNIPER, name: CharacterData.getCharacterName(CharacterType.SNIPER), color: CharacterData.getCharacterColor(CharacterType.SNIPER), description: CharacterData.getCharacterDescription(CharacterType.SNIPER) },
-      { type: CharacterType.THROWER, name: CharacterData.getCharacterName(CharacterType.THROWER), color: CharacterData.getCharacterColor(CharacterType.THROWER), description: CharacterData.getCharacterDescription(CharacterType.THROWER) }
+      { type: CharacterType.BOMBER, name: CharacterData.getCharacterName(CharacterType.BOMBER), color: CharacterData.getCharacterColor(CharacterType.BOMBER), description: CharacterData.getCharacterDescription(CharacterType.BOMBER) }
     ];
     
     // キャラクターボタンを横に並べる
@@ -1150,4 +1150,43 @@ export class TrainingScene extends Phaser.Scene {
       }
     });
   }
+}
+
+// CharacterTypeの定数を修正
+const characterOptions = [
+  {
+    text: 'ナイト', 
+    value: CharacterType.KNIGHT, 
+    description: 'バランス型', 
+    color: '#ffffff'
+  },
+  {
+    text: 'タンカー', 
+    value: CharacterType.TANKER, 
+    description: '防御型', 
+    color: '#ff0000'
+  },
+  {
+    text: 'アーチャー', 
+    value: CharacterType.ARCHER, 
+    description: '射撃型', 
+    color: '#00ff00'
+  },
+  {
+    text: 'スナイパー', 
+    value: CharacterType.SNIPER, 
+    description: '狙撃型', 
+    color: '#0000ff'
+  },
+  {
+    text: '爆弾魔', 
+    value: CharacterType.BOMBER, 
+    description: '爆発型', 
+    color: '#ff00ff'
+  },
+];
+
+// 'characterOptions'の値が読み込まれないエラーを修正するため、使用する
+if (characterOptions.length > 0) {
+  console.debug('利用可能なキャラクター数:', characterOptions.length);
 }

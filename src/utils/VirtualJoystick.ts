@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { WeaponAiming, WeaponType } from './WeaponAiming';
+import { WeaponAiming } from './WeaponAiming';
+import { WeaponType } from '../utils/WeaponTypes';
 import { Player } from '../objects/Player';
 import { ProjectileCalculator } from './ProjectileCalculator';
 

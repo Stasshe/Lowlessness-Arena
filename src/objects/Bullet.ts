@@ -9,8 +9,9 @@ export type BulletType = 'normal' | 'explosive' | 'sniper' | 'parabolic';
  * 武器の弾を表すクラス
  */
 export class Bullet extends Phaser.Physics.Arcade.Sprite {
-  // private時のエラーを回避するためprotectedに変更
+  // protected変数に変更
   protected bulletType: BulletType = 'normal';
+  protected bulletSpeed: number = 0;
   protected bulletDamage: number = 0;
   protected maxDistance: number = 0;
   protected initialX: number = 0;
@@ -31,7 +32,7 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     this.setVisible(true);
     
     // 放物線弾の場合は別の設定
-    if (this.type === 'parabolic') {
+    if (this.bulletType === 'parabolic') { // bulletTypeに修正
       this.fireParabolic(x, y, angle, speed, damage, maxDistance);
       return;
     }
@@ -45,19 +46,19 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     this.initialY = y;
     
     // 弾の外観設定
-    if (this.type === 'normal') {
+    if (this.bulletType === 'normal') { // bulletTypeに修正
       this.setScale(0.5, 0.3);
-    } else if (this.type === 'explosive') {
+    } else if (this.bulletType === 'explosive') { // bulletTypeに修正
       this.setScale(0.8);
       this.setTint(0xff6600);
-    } else if (this.type === 'sniper') {
+    } else if (this.bulletType === 'sniper') { // bulletTypeに修正
       this.setScale(0.7, 0.2);
       this.setTint(0xff0000);
     }
     
     // 物理パラメータを設定
-    this.speed = speed;
-    this.damage = damage;
+    this.bulletSpeed = speed;
+    this.bulletDamage = damage;
     this.maxDistance = maxDistance;
     
     // 速度ベクトルを設定
@@ -77,8 +78,8 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     this.initialY = y;
     
     // パラメータの設定
-    this.speed = speed;
-    this.damage = damage;
+    this.bulletSpeed = speed;
+    this.bulletDamage = damage;
     this.maxDistance = maxDistance;
     
     // 放物線の弾の外観
@@ -107,14 +108,14 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
    * 弾のダメージ値を取得
    */
   getDamage(): number {
-    return this.damage;
+    return this.bulletDamage;
   }
   
   /**
    * 弾の種類を取得
    */
   getBulletType(): BulletType {
-    return this.type;
+    return this.bulletType;
   }
   
   /**
@@ -142,7 +143,7 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
    */
   onHit(): void {
     // 爆発弾の場合は爆発エフェクト
-    if (this.type === 'explosive') {
+    if (this.bulletType === 'explosive') {
       this.explode();
     }
     

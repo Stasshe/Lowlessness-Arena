@@ -33,21 +33,21 @@ export abstract class BaseCharacter {
   
   /**
    * 特別な攻撃処理が必要な場合はオーバーライドする
-   * @param targetX 対象X座標
-   * @param targetY 対象Y座標
+   * @param _targetX 対象X座標（未使用の場合はプレフィックスに_を付ける）
+   * @param _targetY 対象Y座標（未使用の場合はプレフィックスに_を付ける）
    * @returns 特別処理を行った場合はtrue
    */
-  useAttack(targetX: number, targetY: number): boolean {
+  useAttack(_targetX: number, _targetY: number): boolean {
     return false; // デフォルトでは特別処理なし
   }
   
   /**
    * アップデートループで毎フレーム呼ばれる処理
    * キャラクターの特殊な継続的効果などを実装
-   * @param time 現在の時間
-   * @param delta 前フレームからの経過時間
+   * @param _time 現在の時間（未使用の場合はプレフィックスに_を付ける）
+   * @param _delta 前フレームからの経過時間（未使用の場合はプレフィックスに_を付ける）
    */
-  update(time: number, delta: number): void {
+  update(_time: number, _delta: number): void {
     // デフォルトでは何もしない
   }
   

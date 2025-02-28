@@ -17,10 +17,12 @@ export class VirtualJoystick {
   private maxDistance: number = 64;
   private readonly baseRadius: number = 32;
   private readonly stickRadius: number = 16;
+  private player?: Phaser.GameObjects.GameObject;  // プレイヤー参照を追加
 
-  constructor(scene: Phaser.Scene, isForSkill: boolean = false) {
+  constructor(scene: Phaser.Scene, isForSkill: boolean = false, player?: Phaser.GameObjects.GameObject) {
     this.scene = scene;
     this.isForSkill = isForSkill;
+    this.player = player;  // プレイヤー参照を保存
 
     const cameraWidth = scene.cameras.main.width;
     const cameraHeight = scene.cameras.main.height;
@@ -161,7 +163,7 @@ export class VirtualJoystick {
   }
   
   private updateTargetVisuals(): void {
-    if (!this.targetLine || !this.targetCircle || !this.trajectoryLine || !this.scene) return;
+    if (!this.targetLine || !this.targetCircle || !this.trajectoryLine || !this.scene || !this.player) return;
 
     this.targetLine.clear();
     this.targetCircle.clear();
@@ -174,10 +176,14 @@ export class VirtualJoystick {
       const gravity = 980; // 重力加速度
       const points: { x: number, y: number }[] = [];
 
+      // プレイヤーの位置を基準に放物線を計算
+      const startX = (this.player as any).x;  // プレイヤーのX座標
+      const startY = (this.player as any).y;  // プレイヤーのY座標
+
       // 放物線の軌道を計算
       for (let t = 0; t < 1; t += 0.1) {
-        const x = this.base.x + power * Math.cos(angle) * t;
-        const y = this.base.y + (power * Math.sin(angle) * t) + (0.5 * gravity * t * t);
+        const x = startX + power * Math.cos(angle) * t;
+        const y = startY + (power * Math.sin(angle) * t) + (0.5 * gravity * t * t);
         points.push({ x, y });
       }
 
@@ -217,14 +223,15 @@ export class VirtualJoystick {
   }
   
   getTargetWorldPosition(): { x: number; y: number } | null {
-    if (!this.isForSkill || !this.vector.length()) return null;
+    if (!this.isForSkill || !this.vector.length() || !this.player) return null;
     
     const length = this.vector.length();
     const distance = length * this.maxDistance;
     
+    // プレイヤーの位置を基準に計算
     return {
-      x: this.scene.cameras.main.scrollX + this.base.x + this.vector.x * distance,
-      y: this.scene.cameras.main.scrollY + this.base.y + this.vector.y * distance
+      x: (this.player as any).x + this.vector.x * distance,
+      y: (this.player as any).y + this.vector.y * distance
     };
   }
   
@@ -238,6 +245,11 @@ export class VirtualJoystick {
 
   length(): number {
     return this.vector.length();
+  }
+
+  // プレイヤー参照を設定するメソッドを追加
+  setPlayer(player: Phaser.GameObjects.GameObject): void {
+    this.player = player;
   }
 
   // リソース解放用のメソッドを追加

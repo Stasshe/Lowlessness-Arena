@@ -284,17 +284,60 @@ export class TrainingScene extends Phaser.Scene {
     this.characterSelectUI.add(descriptionText);
     
     characters.forEach((char, index) => {
-      // キャラクターの円形アイコン
       const x = startX + index * (buttonWidth + spacing);
-      const bg = this.add.circle(x, 0, 50, char.color, 0.8)
+      const bgCircle = this.add.circle(x, 0, 50, char.color, 0.8)
         .setInteractive({ useHandCursor: true })
-        .on('pointerdown', () => this.selectCharacter(char.type))
+        .on('pointerdown', () => {
+          // 選択時のアニメーション
+          this.selectCharacter(char.type);
+          
+          // 既存の選択エフェクトを削除
+          this.characterSelectUI?.list.forEach(obj => {
+            if (obj.getData('highlightEffect')) {
+              obj.destroy();
+            }
+          });
+
+          // 新しい選択エフェクトを作成
+          const highlightEffect = this.add.circle(x, 0, 55)
+            .setStrokeStyle(4, 0xffff00)
+            .setData('highlightEffect', true);
+          
+          // パルスアニメーション
+          this.tweens.add({
+            targets: highlightEffect,
+            scaleX: { from: 0.8, to: 1.2 },
+            scaleY: { from: 0.8, to: 1.2 },
+            alpha: { from: 1, to: 0.5 },
+            duration: 500,
+            yoyo: true,
+            repeat: -1
+          });
+
+          // 選択時のパーティクル
+          const particles = this.add.particles(x, 0, 'default', {
+            lifespan: 1000,
+            speed: { min: 50, max: 100 },
+            scale: { start: 0.4, end: 0 },
+            tint: char.color,
+            blendMode: 'ADD',
+            emitting: false
+          });
+          
+          particles.explode(20);
+          this.time.delayedCall(1000, () => particles.destroy());
+
+          this.characterSelectUI?.add([highlightEffect]);
+        })
         .on('pointerover', () => {
-          // ホバー時に説明を表示
+          bgCircle.setScale(1.1);
           descriptionText.setText(char.description);
           descriptionText.setTint(char.color);
+        })
+        .on('pointerout', () => {
+          bgCircle.setScale(1.0);
         });
-      
+
       const label = this.add.text(x, 60, char.name, {
         fontSize: '20px',
         color: '#ffffff',
@@ -324,7 +367,7 @@ export class TrainingScene extends Phaser.Scene {
         this.characterSelectUI.add(skillDetailText);
       }
       
-      this.characterSelectUI.add([bg, label]);
+      this.characterSelectUI.add([bgCircle, label]);
     });
     
     // スタートボタン
@@ -487,7 +530,12 @@ export class TrainingScene extends Phaser.Scene {
     // モバイルの場合はジョイスティックを作成
     if (this.isMobile) {
       this.moveJoystick = new VirtualJoystick(this, false);
-      this.skillJoystick = new VirtualJoystick(this, true);
+      this.skillJoystick = new VirtualJoystick(this, true, this.player);
+
+      // プレイヤーの参照を設定
+      if (this.skillJoystick) {
+        this.skillJoystick.setPlayer(this.player);
+      }
     }
     
     // UI の作成
@@ -1115,21 +1163,21 @@ export class TrainingScene extends Phaser.Scene {
     }
     
     // スキルジョイスティックでスキル使用
+    //to fix the bug of skill activation
     if (this.skillJoystick) {
       const skillVector = this.skillJoystick.getVector();
-      // 代わりにVirtualJoystickのlengthメソッドを使用するか、
-      // もしくはベクトルのx,y成分からベクトルの長さを計算
-      const vectorLength = Math.sqrt(skillVector.x * skillVector.x + skillVector.y * skillVector.y);
+      const vectorLength = this.skillJoystick.length();
       
       if (vectorLength > 0) {
-        // スキルジョイスティックが操作されている場合
-        const targetPos = this.skillJoystick.getTargetWorldPosition();
-        if (targetPos) {
-          // スキルの方向が設定された状態で操作が終了したらスキル発動
-          if (!this.skillJoystick.isBeingUsed(this.input.activePointer) && 
-              this.player.canUseSkill()) {
+        if (!this.skillJoystick.isBeingUsed(this.input.activePointer)) {
+          // ジョイスティックを離した時にスキル発動
+          const targetPos = this.skillJoystick.getTargetWorldPosition();
+          if (targetPos && this.player.canUseSkill()) {
             this.player.useSkill(targetPos.x, targetPos.y);
             this.soundManager.playSfx('skill_activate');
+            
+            // スキルエフェクトを表示
+            this.showSkillEffect(this.player.getSkillType(), targetPos.x, targetPos.y);
           }
         }
       }

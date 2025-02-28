@@ -161,4 +161,21 @@ export class Map {
     
     return inBush;
   }
+
+  // リソース解放用のメソッド
+  destroy(): void {
+    // 壁と茂みのグループを解放
+    if (this.walls) {
+      this.walls.clear(true, true);
+      this.walls.destroy();
+    }
+    
+    if (this.bushes) {
+      this.bushes.clear(true, true);
+      this.bushes.destroy();
+    }
+    
+    // スポーンポイントをクリア
+    this.spawnPoints = [];
+  }
 }

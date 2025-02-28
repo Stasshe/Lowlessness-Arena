@@ -4,167 +4,140 @@ import { Player } from '../objects/Player';
 export class UI {
   private scene: Phaser.Scene;
   private player: Player;
-  
-  // UI要素を初期化
   private healthBar: Phaser.GameObjects.Graphics;
-  private skillButton: Phaser.GameObjects.Image;
-  private skillProgress: Phaser.GameObjects.Graphics;
-  private ultimateButton: Phaser.GameObjects.Image;
-  private ultimateProgress: Phaser.GameObjects.Graphics;
+  private skillBar: Phaser.GameObjects.Graphics;
+  private ultimateBar: Phaser.GameObjects.Graphics;
+  private scoreText: Phaser.GameObjects.Text;
+  private elements: Phaser.GameObjects.GameObject[] = [];
   
   constructor(scene: Phaser.Scene, player: Player) {
     this.scene = scene;
     this.player = player;
     
-    // UIの要素を初期化
-    this.healthBar = scene.add.graphics().setScrollFactor(0).setDepth(101);
-    this.skillProgress = scene.add.graphics().setScrollFactor(0).setDepth(101);
-    this.ultimateProgress = scene.add.graphics().setScrollFactor(0).setDepth(101);
-    
-    // ボタンは後でcreateXXXメソッドで初期化されるので、ダミーオブジェクトを入れておく
-    this.skillButton = scene.add.image(0, 0, 'button').setVisible(false);
-    this.ultimateButton = scene.add.image(0, 0, 'button').setVisible(false);
-    
-    // UIの初期化
-    this.createHealthBar();
-    this.createSkillButton();
-    this.createUltimateButton();
-  }
-  
-  private createHealthBar(): void {
-    // 体力バーの背景
-    this.scene.add.rectangle(
-      this.scene.cameras.main.width / 2,
-      30,
-      300,
-      20,
-      0x000000,
-      0.5
-    ).setScrollFactor(0).setDepth(100);
-    
-    // 体力バー
-    this.healthBar = this.scene.add.graphics()
+    // ヘルスバー
+    this.healthBar = scene.add.graphics()
       .setScrollFactor(0)
-      .setDepth(101);
+      .setDepth(100);
+    this.elements.push(this.healthBar);
     
-    // 体力テキスト
-    this.scene.add.text(
-      this.scene.cameras.main.width / 2,
-      30,
-      'HP',
-      { fontSize: '14px', color: '#ffffff' }
-    ).setScrollFactor(0).setOrigin(0.5).setDepth(102);
-  }
-  
-  private createSkillButton(): void {
-    // スキルボタンの位置（右下）
-    const x = this.scene.cameras.main.width - 100;
-    const y = this.scene.cameras.main.height - 100;
-    
-    // スキル進捗
-    this.skillProgress = this.scene.add.graphics()
+    // スキルバー
+    this.skillBar = scene.add.graphics()
       .setScrollFactor(0)
-      .setDepth(101);
+      .setDepth(100);
+    this.elements.push(this.skillBar);
     
-    // スキルボタン
-    this.skillButton = this.scene.add.image(x, y, 'button')
+    // アルティメットバー
+    this.ultimateBar = scene.add.graphics()
       .setScrollFactor(0)
-      .setDepth(102)
-      .setDisplaySize(60, 60)
-      .setInteractive()
-      .on('pointerdown', () => {
-        this.player.useSkill();
-      });
+      .setDepth(100);
+    this.elements.push(this.ultimateBar);
     
-    // スキルアイコン
-    this.scene.add.text(x, y, 'スキル', { 
-      fontSize: '12px', 
-      color: '#ffffff'
-    }).setScrollFactor(0).setOrigin(0.5).setDepth(103);
-  }
-  
-  private createUltimateButton(): void {
-    // アルティメットボタンの位置（右下）
-    const x = this.scene.cameras.main.width - 180;
-    const y = this.scene.cameras.main.height - 100;
-    
-    // アルティメット進捗
-    this.ultimateProgress = this.scene.add.graphics()
-      .setScrollFactor(0)
-      .setDepth(101);
-    
-    // アルティメットボタン
-    this.ultimateButton = this.scene.add.image(x, y, 'button')
-      .setScrollFactor(0)
-      .setDepth(102)
-      .setDisplaySize(60, 60)
-      .setTint(0xff0000)
-      .setInteractive()
-      .on('pointerdown', () => {
-        this.player.useUltimate();
-      });
-    
-    // アルティメットアイコン
-    this.scene.add.text(x, y, '覚醒', { 
-      fontSize: '12px', 
-      color: '#ffffff'
-    }).setScrollFactor(0).setOrigin(0.5).setDepth(103);
+    // スコアテキスト
+    this.scoreText = scene.add.text(10, 10, 'スコア: 0', { 
+      fontSize: '18px', 
+      color: '#ffffff' 
+    })
+    .setScrollFactor(0)
+    .setDepth(100);
+    this.elements.push(this.scoreText);
   }
   
   update(): void {
     this.updateHealthBar();
-    this.updateSkillButton();
-    this.updateUltimateButton();
+    this.updateSkillBar();
+    this.updateUltimateBar();
   }
   
   private updateHealthBar(): void {
-    const health = this.player.getHealth();
-    const maxHealth = this.player.getMaxHealth();
-    const width = 300 * (health / maxHealth);
-    
     this.healthBar.clear();
-    this.healthBar.fillStyle(0x00ff00, 1);
-    this.healthBar.fillRect(
-      this.scene.cameras.main.width / 2 - 150,
-      20,
-      width,
-      20
-    );
+    
+    // 画面左上にヘルスバーを表示
+    const barX = 10;
+    const barY = 40;
+    const width = 200;
+    const height = 15;
+    const borderWidth = 2;
+    
+    // 背景（黒）
+    this.healthBar.fillStyle(0x000000, 0.8);
+    this.healthBar.fillRect(barX - borderWidth, barY - borderWidth, width + borderWidth * 2, height + borderWidth * 2);
+    
+    // HPの割合に応じて色を変更
+    const ratio = this.player.getHealth() / this.player.getMaxHealth();
+    let color = 0xff0000; // 赤
+    
+    if (ratio > 0.7) {
+      color = 0x00ff00; // 緑
+    } else if (ratio > 0.3) {
+      color = 0xffff00; // 黄
+    }
+    
+    // 内側（HP）
+    this.healthBar.fillStyle(color, 1);
+    this.healthBar.fillRect(barX, barY, width * ratio, height);
+    
+    // HP値を表示
+    this.healthBar.fillStyle(0xffffff, 1);
+    this.healthBar.fillRect(barX + width * ratio - 1, barY, 2, height);
   }
   
-  private updateSkillButton(): void {
-    const charge = this.player.getSkillCharge();
-    const maxCharge = 100;  // プレイヤーから取得するように修正予定
+  private updateSkillBar(): void {
+    this.skillBar.clear();
     
-    // 進捗を円形で表示
-    this.skillProgress.clear();
-    this.skillProgress.fillStyle(0x0000ff, 0.7);
-    this.skillProgress.slice(
-      this.scene.cameras.main.width - 100,
-      this.scene.cameras.main.height - 100,
-      35,
-      0,
-      Phaser.Math.DegToRad(360 * (charge / maxCharge)),
-      true
-    );
-    this.skillProgress.fillPath();
+    // スキルゲージの表示
+    const barX = 10;
+    const barY = 65;
+    const width = 150;
+    const height = 10;
+    
+    // 背景（グレー）
+    this.skillBar.fillStyle(0x444444, 0.8);
+    this.skillBar.fillRect(barX, barY, width, height);
+    
+    // スキルの準備状態に応じて色を変更
+    const cooldownPercent = this.player.getSkillCooldownPercent();
+    const color = cooldownPercent >= 1 ? 0x00ffff : 0x888888; // スキル準備完了なら青、そうでなければグレー
+    
+    // スキルゲージ
+    this.skillBar.fillStyle(color, 1);
+    this.skillBar.fillRect(barX, barY, width * cooldownPercent, height);
+    
+    // ラベル
+    this.skillBar.lineStyle(1, 0xffffff, 1);
+    this.skillBar.strokeRect(barX, barY, width, height);
   }
   
-  private updateUltimateButton(): void {
-    const charge = this.player.getUltimateCharge();
-    const maxCharge = 100;  // プレイヤーから取得するように修正予定
+  private updateUltimateBar(): void {
+    this.ultimateBar.clear();
     
-    // 進捗を円形で表示
-    this.ultimateProgress.clear();
-    this.ultimateProgress.fillStyle(0xff0000, 0.7);
-    this.ultimateProgress.slice(
-      this.scene.cameras.main.width - 180,
-      this.scene.cameras.main.height - 100,
-      35,
-      0,
-      Phaser.Math.DegToRad(360 * (charge / maxCharge)),
-      true
-    );
-    this.ultimateProgress.fillPath();
+    // アルティメットゲージの表示
+    const barX = 10;
+    const barY = 85;
+    const width = 150;
+    const height = 10;
+    
+    // 背景（グレー）
+    this.ultimateBar.fillStyle(0x444444, 0.8);
+    this.ultimateBar.fillRect(barX, barY, width, height);
+    
+    // アルティメットの準備状態に応じて色を変更
+    const cooldownPercent = this.player.getUltimateCooldownPercent();
+    const color = cooldownPercent >= 1 ? 0xff6600 : 0x888888; // アルティメット準備完了ならオレンジ、そうでなければグレー
+    
+    // アルティメットゲージ
+    this.ultimateBar.fillStyle(color, 1);
+    this.ultimateBar.fillRect(barX, barY, width * cooldownPercent, height);
+    
+    // ラベル
+    this.ultimateBar.lineStyle(1, 0xffffff, 1);
+    this.ultimateBar.strokeRect(barX, barY, width, height);
+  }
+  
+  // リソース解放
+  destroy(): void {
+    this.elements.forEach(element => {
+      if (element) element.destroy();
+    });
+    this.elements = [];
   }
 }

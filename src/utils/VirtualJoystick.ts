@@ -183,4 +183,28 @@ export class VirtualJoystick {
   length(): number {
     return this.vector.length();
   }
+
+  // リソース解放用のメソッドを追加
+  destroy(): void {
+    // イベントリスナーを解除
+    this.scene.input.off('pointerdown', this.onPointerDown, this);
+    this.scene.input.off('pointermove', this.onPointerMove, this);
+    this.scene.input.off('pointerup', this.onPointerUp, this);
+    
+    // 描画要素を削除
+    this.base.destroy();
+    this.stick.destroy();
+    
+    if (this.targetLine) {
+      this.targetLine.destroy();
+    }
+    
+    if (this.targetCircle) {
+      this.targetCircle.destroy();
+    }
+    
+    // 参照をクリア
+    this.pointer = null;
+    this.vector.reset();
+  }
 }

@@ -83,57 +83,7 @@ export class TrainingScene extends Phaser.Scene {
     // キャラクターファクトリーの初期化
     this.characterFactory = new CharacterFactory(this);
     
-    // マップの作成
-    this.map = new Map(this);
-    
-    // プレイヤーの作成
-    const spawnPoint = this.map.getSpawnPoint();
-    this.player = this.characterFactory.createCharacter(CharacterType.DEFAULT, spawnPoint.x, spawnPoint.y);
-    
-    // 敵ボットの作成（トレーニングモード用）
-    this.createEnemyBots();
-    
-    // カメラの設定
-    this.cameras.main.startFollow(this.player);
-    this.cameras.main.setZoom(1);
-    
-    // 衝突判定の設定
-    this.setupCollisions();
-    
-    // キーボード入力の設定
-    this.cursors = this.input.keyboard!.createCursorKeys();
-    
-    // モバイルの場合はバーチャルジョイスティックを作成
-    if (this.isMobile) {
-      this.joystick = new VirtualJoystick(this);
-    }
-    
-    // UI の作成
-    this.ui = new UI(this, this.player);
-    
-    // 攻撃の設定（クリックかタップで攻撃）
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (!this.joystick?.isBeingUsed(pointer)) {
-        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-        this.player.attack(worldPoint.x, worldPoint.y);
-      }
-    });
-    
-    // バックボタン（デバッグ用）
-    const backButton = this.add.text(16, 16, 'メニューに戻る', { 
-      fontSize: '18px', 
-      color: '#ffffff',
-      backgroundColor: '#000000',
-      padding: { x: 10, y: 5 }
-    })
-    .setScrollFactor(0)
-    .setDepth(100)
-    .setInteractive({ useHandCursor: true })
-    .on('pointerdown', () => {
-      this.scene.start('MainMenuScene');
-    });
-
-    // キャラクター選択メニューを表示
+    // キャラクター選択画面を表示（この時点ではまだゲームは開始しない）
     this.showCharacterSelect();
   }
 
@@ -162,21 +112,40 @@ export class TrainingScene extends Phaser.Scene {
   }
   
   private setupCollisions(): void {
+    // 壁が初期化されているか確認
+    if (!this.map || !this.map.getWalls()) {
+      console.warn('マップまたは壁が初期化されていません');
+      return;
+    }
+
+    // プレイヤーが初期化されているか確認
+    if (!this.player) {
+      console.warn('プレイヤーが初期化されていません');
+      return;
+    }
+
     // プレイヤーと壁の衝突
     this.physics.add.collider(this.player, this.map.getWalls());
     
     // ボットと壁の衝突
     this.enemyBots.forEach(({ bot }) => {
-      this.physics.add.collider(bot, this.map.getWalls());
+      if (bot && this.map.getWalls()) {
+        this.physics.add.collider(bot, this.map.getWalls());
+      }
     });
+    
+    // 弾のグループが初期化されているか確認
+    const playerBullets = this.player.getWeapon()?.getBullets();
+    if (!playerBullets) {
+      console.warn('プレイヤーの弾グループが初期化されていません');
+      return;
+    }
     
     // プレイヤーの弾と壁の衝突
     this.physics.add.collider(
-      this.player.getWeapon().getBullets(),
+      playerBullets,
       this.map.getWalls(),
-      // 型キャストを修正
       (bulletObj, wall) => {
-        // Arcade Physicsの衝突オブジェクトを正しく扱う
         if (bulletObj instanceof Phaser.Physics.Arcade.Sprite) {
           const bullet = bulletObj as Bullet;
           bullet.onHit();
@@ -186,67 +155,62 @@ export class TrainingScene extends Phaser.Scene {
       this
     );
     
-    // プレイヤーの弾と敵ボットの衝突
+    // 各ボットに対する衝突判定を設定
     this.enemyBots.forEach(({ bot }) => {
-      this.physics.add.overlap(
-        this.player.getWeapon().getBullets(),
-        bot,
-        // 型キャストを修正
-        (bulletObj, enemy) => {
-          try {
-            // Arcade Physicsの衝突オブジェクトを正しく扱う
-            if (bulletObj instanceof Phaser.Physics.Arcade.Sprite && enemy instanceof Phaser.Physics.Arcade.Sprite) {
-              const bullet = bulletObj as Bullet;
-              const enemyPlayer = enemy as Player;
-              
-              // ダメージ計算と適用
-              const damage = bullet.getDamage();
-              enemyPlayer.takeDamage(damage);
-              
-              // ヒットエフェクト
-              bullet.onHit();
-              
-              // 効果音
-              this.soundManager.playSfx('hit');
+      if (bot) {
+        // プレイヤーの弾と敵ボットの衝突
+        this.physics.add.overlap(
+          playerBullets,
+          bot,
+          (bulletObj, enemy) => {
+            try {
+              if (bulletObj instanceof Phaser.Physics.Arcade.Sprite && 
+                  enemy instanceof Phaser.Physics.Arcade.Sprite) {
+                const bullet = bulletObj as Bullet;
+                const enemyPlayer = enemy as Player;
+                
+                const damage = bullet.getDamage();
+                enemyPlayer.takeDamage(damage);
+                bullet.onHit();
+                
+                this.soundManager.playSfx('hit');
+              }
+            } catch (e) {
+              console.warn('ボットダメージ処理エラー:', e);
             }
-          } catch (e) {
-            console.warn('ボットダメージ処理エラー:', e);
-          }
-        },
-        undefined,
-        this
-      );
-    });
-    
-    // 敵ボットの弾とプレイヤーの衝突
-    this.enemyBots.forEach(({ bot }) => {
-      this.physics.add.overlap(
-        bot.getWeapon().getBullets(),
-        this.player,
-        // 型キャストを修正
-        (bulletObj, playerObj) => {
-          try {
-            // Arcade Physicsの衝突オブジェクトを正しく扱う
-            if (bulletObj instanceof Phaser.Physics.Arcade.Sprite && playerObj instanceof Phaser.Physics.Arcade.Sprite) {
-              const bullet = bulletObj as Bullet;
-              
-              // ダメージ計算と適用
-              const damage = bullet.getDamage();
-              this.player.takeDamage(damage);
-              
-              // ヒットエフェクト
-              bullet.onHit();
-              
-              // 効果音
-              this.soundManager.playSfx('player_damage');
-            }
-          } catch (e) {
-            console.warn('プレイヤーダメージ処理エラー:', e);
-          }
-        },
-        undefined,
-        this
-      );
+          },
+          undefined,
+          this
+        );
+        
+        // ボットの弾が初期化されているか確認
+        const botBullets = bot.getWeapon()?.getBullets();
+        if (botBullets) {
+          // 敵ボットの弾とプレイヤーの衝突
+          this.physics.add.overlap(
+            botBullets,
+            this.player,
+            (bulletObj, playerObj) => {
+              try {
+                if (bulletObj instanceof Phaser.Physics.Arcade.Sprite && 
+                    playerObj instanceof Phaser.Physics.Arcade.Sprite) {
+                  const bullet = bulletObj as Bullet;
+                  
+                  const damage = bullet.getDamage();
+                  this.player.takeDamage(damage);
+                  bullet.onHit();
+                  
+                  this.soundManager.playSfx('player_damage');
+                }
+              } catch (e) {
+                console.warn('プレイヤーダメージ処理エラー:', e);
+              }
+            },
+            undefined,
+            this
+          );
+        }
+      }
     });
   }
 
@@ -254,69 +218,161 @@ export class TrainingScene extends Phaser.Scene {
     // キャラクター選択UIを作成
     this.characterSelectUI = this.add.container(this.cameras.main.width / 2, 200);
     
+    // 背景を追加 (暗い半透明のオーバーレイ)
+    const bgOverlay = this.add.rectangle(
+      0, 0, 
+      this.cameras.main.width * 2, 
+      this.cameras.main.height * 2,
+      0x000000, 0.7
+    );
+    this.characterSelectUI.add(bgOverlay);
+    
     // タイトル
-    const title = this.add.text(0, -100, 'キャラクター選択', { 
-      fontSize: '32px', 
+    const title = this.add.text(0, -150, 'トレーニングモード', { 
+      fontSize: '42px', 
       color: '#ffffff',
-      fontFamily: 'Arial, sans-serif'
+      fontFamily: 'Arial, sans-serif',
+      stroke: '#000000',
+      strokeThickness: 4
     }).setOrigin(0.5);
     this.characterSelectUI.add(title);
     
+    const subtitle = this.add.text(0, -100, 'キャラクターを選択してください', { 
+      fontSize: '26px', 
+      color: '#ffffff',
+      fontFamily: 'Arial, sans-serif'
+    }).setOrigin(0.5);
+    this.characterSelectUI.add(subtitle);
+    
     // 使用可能なキャラクター一覧
     const characters = [
-      { type: CharacterType.DEFAULT, name: 'デフォルト', color: 0xffffff },
-      { type: CharacterType.TANK, name: 'タンク', color: 0xff0000 },
-      { type: CharacterType.SPEEDER, name: 'スピーダー', color: 0x00ff00 },
-      { type: CharacterType.SNIPER, name: 'スナイパー', color: 0x0000ff },
-      { type: CharacterType.THROWER, name: '爆弾魔', color: 0xff00ff }
+      { type: CharacterType.DEFAULT, name: 'デフォルト', color: 0xffffff, description: 'バランスの取れた性能' },
+      { type: CharacterType.TANK, name: 'タンク', color: 0xff0000, description: 'HPが高いが移動速度が遅い' },
+      { type: CharacterType.SPEEDER, name: 'スピーダー', color: 0x00ff00, description: '素早いが耐久力が低い' },
+      { type: CharacterType.SNIPER, name: 'スナイパー', color: 0x0000ff, description: '長距離攻撃が得意' },
+      { type: CharacterType.THROWER, name: '爆弾魔', color: 0xff00ff, description: '範囲攻撃が得意' }
     ];
     
     // キャラクターボタンを横に並べる
     const buttonWidth = 120;
-    const spacing = 20;
+    const spacing = 40;
     const startX = -((characters.length - 1) * (buttonWidth + spacing)) / 2;
+    
+    // 選択されたキャラクターの説明テキスト
+    const descriptionText = this.add.text(0, 80, '', { 
+      fontSize: '20px', 
+      color: '#ffffff',
+      fontFamily: 'Arial, sans-serif',
+      align: 'center',
+      wordWrap: { width: 500 }
+    }).setOrigin(0.5);
+    this.characterSelectUI.add(descriptionText);
     
     characters.forEach((char, index) => {
       // キャラクターの円形アイコン
       const x = startX + index * (buttonWidth + spacing);
       const bg = this.add.circle(x, 0, 50, char.color, 0.8)
         .setInteractive({ useHandCursor: true })
-        .on('pointerdown', () => this.selectCharacter(char.type));
+        .on('pointerdown', () => this.selectCharacter(char.type))
+        .on('pointerover', () => {
+          // ホバー時に説明を表示
+          descriptionText.setText(char.description);
+          descriptionText.setTint(char.color);
+        });
       
       const label = this.add.text(x, 60, char.name, {
-        fontSize: '18px',
-        color: '#ffffff'
+        fontSize: '20px',
+        color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 2
       }).setOrigin(0.5);
       
       // 選択中のキャラクターを強調表示
       if (char.type === this.selectedCharacterType) {
-        this.add.circle(x, 0, 55, 0xffff00, 0)
+        const highlight = this.add.circle(x, 0, 55, 0xffff00, 0)
           .setStrokeStyle(4, 0xffff00, 1);
+        this.characterSelectUI.add(highlight);
+        
+        // 選択したキャラクターの説明を表示
+        descriptionText.setText(char.description);
+        descriptionText.setTint(char.color);
       }
       
       this.characterSelectUI.add([bg, label]);
     });
     
     // スタートボタン
-    const startButton = this.add.rectangle(0, 150, 200, 60, 0x00aa00)
+    const startButton = this.add.rectangle(0, 150, 200, 60, 0x00aa00, 0.8)
+      .setStrokeStyle(2, 0x00ff00, 1)
       .setInteractive({ useHandCursor: true })
       .on('pointerdown', () => {
-        // サウンドを鳴らし、UIを非表示にしてゲーム開始
+        // サウンドを鳴らし、UIを非表示にしてゲームを開始
         this.soundManager.playSfx('button_click');
-        this.startTraining();
+        // UIをフェードアウト
+        this.tweens.add({
+          targets: this.characterSelectUI,
+          alpha: 0,
+          duration: 500,
+          ease: 'Power2',
+          onComplete: () => {
+            this.characterSelectUI.destroy();
+            this.characterSelectUI = undefined;
+            // ゲームを初期化して開始
+            this.initializeGameWorld();
+          }
+        });
+      })
+      .on('pointerover', function(this: Phaser.GameObjects.Rectangle) {
+        this.fillColor = 0x00cc00; // ホバー時に色を変更
+      })
+      .on('pointerout', function(this: Phaser.GameObjects.Rectangle) {
+        this.fillColor = 0x00aa00; // ホバー解除時に色を戻す
       });
     
-    const startText = this.add.text(0, 150, 'トレーニング開始', {
-      fontSize: '24px',
+    const startText = this.add.text(0, 150, 'ゲーム開始', {
+      fontSize: '26px',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2
+    }).setOrigin(0.5);
+    
+    // 戻るボタン
+    const backButton = this.add.rectangle(0, 220, 200, 40, 0x444444, 0.8)
+      .setStrokeStyle(2, 0x666666, 1)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => {
+        // メニューに戻る
+        this.soundManager.playSfx('button_click');
+        this.scene.start('MainMenuScene');
+      })
+      .on('pointerover', function(this: Phaser.GameObjects.Rectangle) {
+        this.fillColor = 0x666666; // ホバー時に色を変更
+      })
+      .on('pointerout', function(this: Phaser.GameObjects.Rectangle) {
+        this.fillColor = 0x444444; // ホバー解除時に色を戻す
+      });
+    
+    const backText = this.add.text(0, 220, 'メニューに戻る', {
+      fontSize: '18px',
       color: '#ffffff'
     }).setOrigin(0.5);
     
-    this.characterSelectUI.add([startButton, startText]);
+    this.characterSelectUI.add([startButton, startText, backButton, backText]);
     
-    // キャラクター選択UIをカメラに追従させる
+    // キャラクター選択UIをカメラに追従
     this.characterSelectUI.setScrollFactor(0).setDepth(1000);
+    
+    // UIに対するアニメーション（フェードイン）
+    this.characterSelectUI.alpha = 0;
+    this.tweens.add({
+      targets: this.characterSelectUI,
+      alpha: 1,
+      duration: 500,
+      ease: 'Power2'
+    });
   }
   
+  // キャラクター選択処理
   private selectCharacter(type: CharacterType): void {
     this.selectedCharacterType = type;
     this.soundManager.playSfx('button_click');
@@ -328,21 +384,10 @@ export class TrainingScene extends Phaser.Scene {
     this.showCharacterSelect();
   }
   
-  private startTraining(): void {
-    // UIを非表示
-    if (this.characterSelectUI) {
-      this.characterSelectUI.destroy();
-      this.characterSelectUI = undefined;
-    }
-    
-    // モバイルデバイス判定
-    this.isMobile = !this.sys.game.device.os.desktop;
-    
-    // サウンドマネージャーの初期化
-    this.soundManager = new SoundManager(this);
-    
-    // キャラクターファクトリーの初期化
-    this.characterFactory = new CharacterFactory(this);
+  // ゲームワールドの初期化
+  private initializeGameWorld(): void {
+    // 既存のオブジェクトをクリーンアップ
+    this.cleanupGame();
     
     // マップの作成
     this.map = new Map(this);
@@ -351,27 +396,62 @@ export class TrainingScene extends Phaser.Scene {
     const spawnPoint = this.map.getSpawnPoint();
     this.player = this.characterFactory.createCharacter(this.selectedCharacterType, spawnPoint.x, spawnPoint.y);
     
-    // 敵ボットの作成
-    this.createEnemyBots();
-    
     // カメラの設定
     this.cameras.main.startFollow(this.player);
-    this.cameras.main.setZoom(1);
     
-    // 衝突判定の設定
-    this.setupCollisions();
+    // ゲーム開始のアナウンス表示
+    const startAnnouncement = this.add.text(
+      this.cameras.main.width / 2,
+      this.cameras.main.height / 2,
+      'トレーニング開始！',
+      {
+        fontSize: '48px',
+        color: '#ffffff',
+        fontFamily: 'Arial, sans-serif',
+        stroke: '#000000',
+        strokeThickness: 6
+      }
+    )
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(100)
+    .setAlpha(0);
+    
+    // アナウンスをフェードイン→フェードアウト
+    this.tweens.add({
+      targets: startAnnouncement,
+      alpha: 1,
+      duration: 800,
+      ease: 'Power2',
+      yoyo: true,
+      hold: 1000,
+      onComplete: () => {
+        startAnnouncement.destroy();
+      }
+    });
+    
+    // 少し遅延させてからボットを生成
+    this.time.delayedCall(1000, () => {
+      // 敵ボットの作成
+      this.createEnemyBots();
+      
+      // 衝突判定の設定（ボット生成後）
+      this.setupCollisions();
+    });
     
     // キーボード入力の設定
     this.cursors = this.input.keyboard!.createCursorKeys();
     
-    // ジョイスティックの作成
-    this.moveJoystick = new VirtualJoystick(this, false); // 移動用
-    this.skillJoystick = new VirtualJoystick(this, true); // スキル用
+    // モバイルの場合はジョイスティックを作成
+    if (this.isMobile) {
+      this.moveJoystick = new VirtualJoystick(this, false);
+      this.skillJoystick = new VirtualJoystick(this, true);
+    }
     
     // UI の作成
     this.ui = new UI(this, this.player);
     
-    // スキルクールダウン表示
+    // スキルクールダウン表示を作成
     this.createSkillCooldownDisplay();
     
     // バックボタン（メニューに戻る）
@@ -388,10 +468,63 @@ export class TrainingScene extends Phaser.Scene {
       this.scene.start('MainMenuScene');
     });
     
-    // BGM再生
-    this.soundManager.playMusic('game_bgm');
+    // 攻撃の設定（クリックかタップで攻撃）
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // ジョイスティックの操作でなく、UIボタン上でもない場合のみ攻撃
+      if ((!this.moveJoystick || !this.moveJoystick.isBeingUsed(pointer)) && 
+          (!this.skillJoystick || !this.skillJoystick.isBeingUsed(pointer))) {
+        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        this.player.attack(worldPoint.x, worldPoint.y);
+      }
+    });
   }
-  
+
+  // クリーンアップメソッドを追加
+  private cleanupGame(): void {
+    // 既存のボットを削除
+    this.enemyBots.forEach(({ bot, ai }) => {
+      if (ai) ai.destroy();
+      if (bot) bot.destroy();
+    });
+    this.enemyBots = [];
+    
+    // 既存のUIをクリア
+    if (this.ui) {
+      this.ui.destroy();
+    }
+    
+    // 既存のジョイスティックをクリア
+    if (this.moveJoystick) {
+      // VirtualJoystickにdestroy()メソッドを追加する必要あり
+      // this.moveJoystick.destroy();
+      this.moveJoystick = undefined;
+    }
+    
+    if (this.skillJoystick) {
+      // this.skillJoystick.destroy();
+      this.skillJoystick = undefined;
+    }
+    
+    // 既存のスキルクールダウン表示をクリア
+    if (this.skillCooldownDisplay) {
+      this.skillCooldownDisplay.clear();
+      this.skillCooldownDisplay = undefined;
+    }
+    
+    // 既存のプレイヤーを削除
+    if (this.player) {
+      this.player.destroy();
+      this.player = undefined as any;
+    }
+    
+    // 既存のマップを削除
+    if (this.map) {
+      // Mapクラスにdestroy()メソッドを追加する必要あり
+      // this.map.destroy();
+      this.map = undefined as any;
+    }
+  }
+
   private createSkillCooldownDisplay(): void {
     // スキルクールダウンを表示するグラフィック要素
     this.skillCooldownDisplay = this.add.graphics()

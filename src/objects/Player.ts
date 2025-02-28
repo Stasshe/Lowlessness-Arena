@@ -779,7 +779,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.moveSpeed = value;
   }
   
-  setWeapon(type: string): void {
+  setWeapon(type: WeaponType): void {  // 引数の型を修正
     this.weapon = new Weapon(this.scene, this, type);
   }
   
@@ -806,7 +806,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
   
   // 武器タイプを取得するゲッターメソッド
-  getWeaponType(): string {
+  getWeaponType(): WeaponType {
     return this.weapon.getType();
   }
 

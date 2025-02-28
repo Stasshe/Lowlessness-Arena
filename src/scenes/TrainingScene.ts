@@ -2,13 +2,13 @@ import Phaser from 'phaser';
 import { GameConfig } from '../config/GameConfig';
 import { Player } from '../objects/Player';
 import { VirtualJoystick } from '../utils/VirtualJoystick';
-import { Map } from '../objects/Map';
+import { Map, MapType } from '../objects/Map';  // MapTypeをインポート
 import { UI } from '../ui/UI';
 import { BotAI, BotDifficulty } from '../ai/BotAI';
 import { CharacterFactory, CharacterType } from '../characters/CharacterFactory';
 import { SoundManager } from '../utils/SoundManager';
 import { Bullet } from '../objects/Bullet';
-import { SkillType as PlayerSkillType } from '../objects/Player';
+import { SkillType } from '../objects/Player';
 import { WeaponType } from '../objects/Weapon';
 
 export class TrainingScene extends Phaser.Scene {
@@ -428,8 +428,8 @@ export class TrainingScene extends Phaser.Scene {
     // 物理エンジンをリセット
     this.physics.world.resume();
     
-    // マップの作成
-    this.map = new Map(this);
+    // マップの作成（MapTypeを指定）
+    this.map = new Map(this, MapType.DEFAULT);
     
     // プレイヤーの作成（選択したキャラクタータイプを使用）
     const spawnPoint = this.map.getSpawnPoint();
@@ -530,6 +530,18 @@ export class TrainingScene extends Phaser.Scene {
     this.displayCharacterInfo();
   }
   
+  private selectCharacter(type: CharacterType): void {
+    // 現在選択中のキャラクターを更新
+    this.selectedCharacterType = type;
+    
+    // 選択音を再生
+    try {
+      this.soundManager.playSfx('select');
+    } catch (e) {
+      console.warn('選択音の再生に失敗:', e);
+    }
+  }
+
   // AIのオン/オフを切り替えるボタンを作成
   private createAIToggleButton(): void {
     const buttonX = this.cameras.main.width - 100;
@@ -685,8 +697,8 @@ export class TrainingScene extends Phaser.Scene {
   }
   
   // 武器タイプから表示名を取得
-  private getWeaponDisplayName(weaponType: WeaponType): string {
-    switch (weaponType) {
+  private getWeaponDisplayName(weaponType: WeaponType): string {  // 型をWeaponTypeに修正
+    switch (weaponType as WeaponType) {  // 明示的なキャスト
       case WeaponType.SHOTGUN: return 'ショットガン';
       case WeaponType.SNIPER: return 'スナイパーライフル';
       case WeaponType.MACHINEGUN: return 'マシンガン';
@@ -998,7 +1010,7 @@ export class TrainingScene extends Phaser.Scene {
   // スキルエフェクトをクリア
   private clearSkillAnimationEffects(): void {
     this.skillAnimationEffects.forEach(effect => {
-      if (effect && !effect.destroyed) {
+      if (effect && !effect.destroy) {
         effect.destroy();
       }
     });

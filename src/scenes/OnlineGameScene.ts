@@ -2,19 +2,20 @@ import Phaser from 'phaser';
 import { GameConfig } from '../config/GameConfig';
 import { Player } from '../objects/Player';
 import { VirtualJoystick } from '../utils/VirtualJoystick';
-import { Map } from '../objects/Map';
+import { Map as GameMap, MapType } from '../objects/Map';  // Mapをエイリアスとして使用
 import { UI } from '../ui/UI';
 import { CharacterFactory, CharacterType } from '../characters/CharacterFactory';
 import { SoundManager } from '../utils/SoundManager';
 import { FirebaseManager } from '../firebase/FirebaseManager';
 import { GameEffects } from '../utils/GameEffects';
+import { Bullet } from '../objects/Bullet';
 
 export class OnlineGameScene extends Phaser.Scene {
   private player!: Player;
-  // JavaScriptのMapはジェネリック型なので正確に型指定する
-  private otherPlayers: Map<string, Player> = new Map<string, Player>();
-  private playerSubscriptions: Map<string, () => void> = new Map<string, () => void>();
-  private map!: Map;
+  // JavaScriptのMapをPhaserのMapと区別するために名前を変更
+  private otherPlayers: globalThis.Map<string, Player> = new globalThis.Map();
+  private playerSubscriptions: globalThis.Map<string, () => void> = new globalThis.Map();
+  private map!: GameMap;  // GameMapとして使用
   private joystick?: VirtualJoystick;
   private ui!: UI;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -46,8 +47,8 @@ export class OnlineGameScene extends Phaser.Scene {
     }
     
     // シーンをリセット
-    this.otherPlayers = new Map();
-    this.playerSubscriptions = new Map();
+    this.otherPlayers = new globalThis.Map();
+    this.playerSubscriptions = new globalThis.Map();
     this.isGameStarted = false;
     this.isGameOver = false;
     
@@ -79,8 +80,8 @@ export class OnlineGameScene extends Phaser.Scene {
       { fontSize: '24px', color: '#ffffff' }
     ).setOrigin(0.5).setScrollFactor(0);
     
-    // マップを作成
-    this.map = new Map(this);
+    // マップを作成（引数を正しく指定）
+    this.map = new GameMap(this, MapType.DEFAULT);
     
     // キーボード入力を設定
     this.cursors = this.input.keyboard!.createCursorKeys();
@@ -152,9 +153,7 @@ export class OnlineGameScene extends Phaser.Scene {
       await this.firebaseManager.updatePlayerPosition(spawnPoint.x, spawnPoint.y, 0);
       
       // プレイヤーが2人揃ったらゲーム開始
-      const gameDoc = await this.firebaseManager.getDb()
-        .doc(`games/${this.firebaseManager.getGameId()}`)
-        .get();
+      const gameDoc = await this.firebaseManager.getGameDocument();
       
       if (gameDoc.exists && gameDoc.data()?.playerCount >= 2) {
         await this.firebaseManager.updateGameState('playing');
@@ -216,9 +215,12 @@ export class OnlineGameScene extends Phaser.Scene {
     this.physics.add.collider(
       playerBullets,
       this.map.getWalls(),
-      (bullet: Phaser.GameObjects.GameObject) => {
-        if ((bullet as Phaser.Physics.Arcade.Sprite).active) {
-          ((bullet as any) as Bullet).onHit();
+      (bulletObj: any, wall: any) => {
+        if (bulletObj instanceof Phaser.Physics.Arcade.Sprite) {
+          const bullet = bulletObj as Bullet;
+          if (bullet.onHit) {
+            bullet.onHit();
+          }
         }
       }
     );

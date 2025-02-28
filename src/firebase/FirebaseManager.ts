@@ -488,4 +488,9 @@ export class FirebaseManager {
       return 'error';
     }
   }
+
+  async getGameDocument() {
+    const docRef = doc(this.db, `games/${this.gameId}`);
+    return await getDoc(docRef);
+  }
 }

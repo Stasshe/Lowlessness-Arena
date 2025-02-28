@@ -24,10 +24,10 @@ export class Weapon {
   private spread: number = 0; // 角度でのブレ
   private rangeMultiplier: number = 1.0;
   
-  constructor(scene: Phaser.Scene, owner: Player, type: string) {
+  constructor(scene: Phaser.Scene, owner: Player, type: WeaponType) {
     this.scene = scene;
     this.owner = owner;
-    this.type = type as WeaponType;
+    this.type = type;
     
     // 弾のグループを作成
     this.bullets = scene.physics.add.group({
@@ -181,7 +181,7 @@ export class Weapon {
   /**
    * 武器の種類を取得
    */
-  getType(): string {
+  getType(): WeaponType {
     return this.type;
   }
   

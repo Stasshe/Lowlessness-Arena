@@ -23,6 +23,17 @@ import {
   orderBy,
   limit
 } from 'firebase/firestore';
+import { CharacterType } from '../characters/CharacterFactory';
+
+// Firebaseの設定
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "lowlessness-arena.firebaseapp.com",
+  projectId: "lowlessness-arena",
+  storageBucket: "lowlessness-arena.appspot.com",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
 
 export class FirebaseManager {
   private app: FirebaseApp;
@@ -39,17 +50,6 @@ export class FirebaseManager {
   private playersListener?: () => void;
   
   constructor() {
-    // Firebaseの設定
-    // 注意: 実際の運用時には環境変数などから取得することを推奨
-    const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "lowlessness-arena.firebaseapp.com",
-      projectId: "lowlessness-arena",
-      storageBucket: "lowlessness-arena.appspot.com",
-      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-      appId: "YOUR_APP_ID"
-    };
-    
     // Firebaseの初期化
     this.app = initializeApp(firebaseConfig);
     this.auth = getAuth(this.app);
@@ -233,7 +233,7 @@ export class FirebaseManager {
   }
   
   // キャラクタータイプを更新
-  async setCharacterType(characterType: string): Promise<boolean> {
+  async setCharacterType(characterType: CharacterType): Promise<boolean> {
     if (!this.isAuthenticated || !this.gameId) {
       return false;
     }
@@ -305,6 +305,26 @@ export class FirebaseManager {
     } catch (error) {
       console.error('Firebase: アクション送信に失敗しました', error);
       return false;
+    }
+  }
+  
+  // ゲーム状態の更新
+  async getGameData(): Promise<any> {
+    if (!this.gameId) {
+      return null;
+    }
+    
+    try {
+      const gameRef = doc(this.db, 'games', this.gameId);
+      const gameSnap = await getDoc(gameRef);
+      
+      if (gameSnap.exists()) {
+        return gameSnap.data();
+      }
+      return null;
+    } catch (error) {
+      console.error('Firebase: ゲームデータの取得に失敗しました', error);
+      return null;
     }
   }
   
@@ -450,5 +470,22 @@ export class FirebaseManager {
   // アルティメット使用アクション送信
   async sendUltimateAction(): Promise<boolean> {
     return this.sendPlayerAction('ultimate', 0, 0);
+  }
+
+  // ゲームの状態を取得するメソッドを追加
+  async getGameStatus(gameId: string): Promise<string> {
+    try {
+      // Firestoreのdocメソッドは正しい形式で使用
+      const gameRef = doc(this.db, 'games', gameId);
+      const gameSnap = await getDoc(gameRef);
+      
+      if (gameSnap.exists()) {
+        return gameSnap.data().status || 'unknown';
+      }
+      return 'unknown';
+    } catch (error) {
+      console.error('Firebase: ゲーム状態の取得に失敗しました', error);
+      return 'error';
+    }
   }
 }

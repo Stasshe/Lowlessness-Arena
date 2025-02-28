@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
+import { GameConfig } from '../config/GameConfig';
+import { SoundManager } from '../utils/SoundManager';
 import { FirebaseManager } from '../firebase/FirebaseManager';
 import { CharacterType } from '../characters/CharacterFactory';
-import { SoundManager } from '../utils/SoundManager';
-import { GameConfig } from '../config/GameConfig';
 
 export class LobbyScene extends Phaser.Scene {
   private firebaseManager: FirebaseManager;

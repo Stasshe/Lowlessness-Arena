@@ -8,6 +8,8 @@ import { BotAI, BotDifficulty } from '../ai/BotAI';
 import { CharacterFactory, CharacterType } from '../characters/CharacterFactory';
 import { SoundManager } from '../utils/SoundManager';
 import { Bullet } from '../objects/Bullet';
+import { SkillType as PlayerSkillType } from '../objects/Player';
+import { WeaponType } from '../objects/Weapon';
 
 export class TrainingScene extends Phaser.Scene {
   private player!: Player;
@@ -24,6 +26,11 @@ export class TrainingScene extends Phaser.Scene {
   private selectedCharacterType: CharacterType = CharacterType.DEFAULT;
   private characterSelectUI?: Phaser.GameObjects.Container;
   private skillCooldownDisplay?: Phaser.GameObjects.Graphics;
+  private aiEnabled: boolean = true;
+  private aiToggleButton?: Phaser.GameObjects.Container;
+  private skillInfoText?: Phaser.GameObjects.Text;
+  private weaponInfoText?: Phaser.GameObjects.Text;
+  private skillAnimationEffects: Phaser.GameObjects.GameObject[] = [];
   
   constructor() {
     super('TrainingScene');
@@ -304,6 +311,17 @@ export class TrainingScene extends Phaser.Scene {
         // 選択したキャラクターの説明を表示
         descriptionText.setText(char.description);
         descriptionText.setTint(char.color);
+        
+        // 選択したキャラクターのスキル詳細も表示
+        const skillInfo = this.getCharacterSkillInfo(char.type);
+        const skillDetailText = this.add.text(0, 120, skillInfo, { 
+          fontSize: '14px',
+          color: '#cccccc',
+          align: 'center',
+          wordWrap: { width: 400 }
+        }).setOrigin(0.5);
+        
+        this.characterSelectUI.add(skillDetailText);
       }
       
       this.characterSelectUI.add([bg, label]);
@@ -380,18 +398,28 @@ export class TrainingScene extends Phaser.Scene {
     });
   }
   
-  // キャラクター選択処理
-  private selectCharacter(type: CharacterType): void {
-    this.selectedCharacterType = type;
-    this.soundManager.playSfx('button_click');
-    
-    // 選択UIを更新するため、いったん削除して再表示
-    if (this.characterSelectUI) {
-      this.characterSelectUI.destroy();
+  private getCharacterSkillInfo(type: CharacterType): string {
+    switch (type) {
+      case CharacterType.TANK:
+        return '【タンク】\n武器: ショットガン - 短距離で広範囲攻撃\nスキル: シールド - 3秒間ダメージを30%軽減\nアルティメット: バリケード - 周囲に壁を生成';
+        
+      case CharacterType.SPEEDER:
+        return '【スピーダー】\n武器: マシンガン - 連射が速いが威力は低め\nスキル: ダッシュ - 指定方向に素早く移動\nアルティメット: 高速連射 - 5秒間発射速度が3倍に';
+        
+      case CharacterType.SNIPER:
+        return '【スナイパー】\n武器: スナイパーライフル - 高威力の長距離攻撃\nスキル: スコープ - 射程と精度が向上\nアルティメット: ヘッドショット - 全方位に貫通弾を発射';
+        
+      case CharacterType.THROWER:
+        return '【爆弾魔】\n武器: グレネードランチャー - 爆発する弾を投げる\nスキル: 地雷 - 踏むと爆発する罠を設置\nアルティメット: 爆破 - 広範囲に大爆発を起こす';
+        
+      case CharacterType.HEALER:
+        return '【ヒーラー】\n武器: 回復銃 - 味方を回復できる特殊な銃\nスキル: 自己回復 - HPを30%回復\nアルティメット: 全体回復 - 範囲内の味方を完全回復';
+        
+      default: // CharacterType.DEFAULT
+        return '【バランス型】\n武器: ハンドガン - バランスの取れた性能\nスキル: シールド - 2秒間ダメージを20%軽減\nアルティメット: エナジーブラスト - 中範囲の爆発攻撃';
     }
-    this.showCharacterSelect();
   }
-  
+
   // ゲームワールドの初期化
   private initializeGameWorld(): void {
     // 既存のオブジェクトをクリーンアップ
@@ -468,6 +496,12 @@ export class TrainingScene extends Phaser.Scene {
     // スキルクールダウン表示を作成
     this.createSkillCooldownDisplay();
     
+    // AIトグルボタンを追加
+    this.createAIToggleButton();
+    
+    // スキル情報表示を追加
+    this.createSkillInfoDisplay();
+    
     // バックボタン（メニューに戻る）
     const backButton = this.add.text(16, 16, 'メニューに戻る', { 
       fontSize: '18px', 
@@ -491,57 +525,484 @@ export class TrainingScene extends Phaser.Scene {
         this.player.attack(worldPoint.x, worldPoint.y);
       }
     });
+    
+    // キャラクター情報を表示
+    this.displayCharacterInfo();
+  }
+  
+  // AIのオン/オフを切り替えるボタンを作成
+  private createAIToggleButton(): void {
+    const buttonX = this.cameras.main.width - 100;
+    const buttonY = 100;
+    
+    // ボタンの背景
+    const buttonBg = this.add.rectangle(0, 0, 80, 40, 0x222222, 0.8)
+      .setStrokeStyle(2, 0x444444);
+    
+    // AIのステータスに応じたラベル
+    const labelText = this.aiEnabled ? 'AI: ON' : 'AI: OFF';
+    const labelColor = this.aiEnabled ? '#00ff00' : '#ff0000';
+    
+    const label = this.add.text(0, 0, labelText, {
+      fontSize: '16px',
+      color: labelColor,
+      fontFamily: 'Arial'
+    }).setOrigin(0.5);
+    
+    // ボタンコンテナ作成
+    this.aiToggleButton = this.add.container(buttonX, buttonY, [buttonBg, label])
+      .setDepth(100)
+      .setScrollFactor(0)
+      .setInteractive(new Phaser.Geom.Rectangle(-40, -20, 80, 40), Phaser.Geom.Rectangle.Contains)
+      .on('pointerdown', () => {
+        this.toggleAI();
+        
+        // ラベルを更新
+        const newLabelText = this.aiEnabled ? 'AI: ON' : 'AI: OFF';
+        const newLabelColor = this.aiEnabled ? '#00ff00' : '#ff0000';
+        label.setText(newLabelText);
+        label.setColor(newLabelColor);
+        
+        // クリック効果音
+        this.soundManager.playSfx('button_click');
+      });
+    
+    // ホバーエフェクト
+    this.aiToggleButton
+      .on('pointerover', () => {
+        buttonBg.setFillStyle(0x444444, 0.8);
+      })
+      .on('pointerout', () => {
+        buttonBg.setFillStyle(0x222222, 0.8);
+      });
+  }
+  
+  // AIのオン/オフを切り替え
+  private toggleAI(): void {
+    this.aiEnabled = !this.aiEnabled;
+    
+    // ボットのAI制御を更新
+    this.enemyBots.forEach(({ bot, ai }) => {
+      if (this.aiEnabled) {
+        ai.enable();
+      } else {
+        ai.disable();
+        // AIオフの場合はボットを停止
+        bot.setVelocity(0, 0);
+      }
+    });
+  }
+  
+  // キャラクターとスキルの情報表示
+  private createSkillInfoDisplay(): void {
+    // キャラクター名とスキル名を表示
+    const characterName = this.getCharacterDisplayName(this.selectedCharacterType);
+    const skillName = this.getSkillDisplayName(this.player.getSkillType());
+    const weaponName = this.getWeaponDisplayName(this.player.getWeaponType());
+    
+    // スキル情報表示
+    this.skillInfoText = this.add.text(16, this.cameras.main.height - 80, 
+      `スキル: ${skillName} [スペースキー]`, {
+        fontSize: '16px',
+        color: '#00ffff',
+      })
+      .setScrollFactor(0)
+      .setDepth(100);
+      
+    // 武器情報表示
+    this.weaponInfoText = this.add.text(16, this.cameras.main.height - 50, 
+      `武器: ${weaponName}`, {
+        fontSize: '16px',
+        color: '#ffff00',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        padding: { x: 8, y: 4 }
+      })
+      .setScrollFactor(0)
+      .setDepth(100);
+      
+    // キー操作ガイド
+    this.add.text(16, this.cameras.main.height - 110, 
+      `操作: WASD移動 / クリックで攻撃 / スペースでスキル / Qでアルティメット`, {
+        fontSize: '14px',
+        color: '#ffffff',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        padding: { x: 8, y: 4 }
+      })
+      .setScrollFactor(0)
+      .setDepth(100);
+  }
+  
+  // キャラクター情報表示
+  private displayCharacterInfo(): void {
+    const characterName = this.getCharacterDisplayName(this.selectedCharacterType);
+    
+    // キャラクター名を表示
+    const characterInfoText = this.add.text(this.cameras.main.width / 2, 50, 
+      `キャラクター: ${characterName}`, {
+        fontSize: '20px',
+        color: '#ffffff',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        padding: { x: 12, y: 6 }
+      })
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(100);
+    
+    // 表示を3秒後に消す
+    this.time.delayedCall(3000, () => {
+      this.tweens.add({
+        targets: characterInfoText,
+        alpha: 0,
+        duration: 500,
+        onComplete: () => characterInfoText.destroy()
+      });
+    });
+  }
+  
+  // キャラクタータイプから表示名を取得
+  private getCharacterDisplayName(type: CharacterType): string {
+    switch (type) {
+      case CharacterType.TANK: return 'タンク';
+      case CharacterType.SPEEDER: return 'スピーダー';
+      case CharacterType.SNIPER: return 'スナイパー';
+      case CharacterType.HEALER: return 'ヒーラー';
+      case CharacterType.THROWER: return '爆弾魔';
+      default: return 'バランス型';
+    }
+  }
+  
+  // スキルタイプから表示名を取得
+  private getSkillDisplayName(skillType: SkillType): string {
+    switch (skillType) {
+      case SkillType.SHIELD: return 'シールド';
+      case SkillType.DASH: return 'ダッシュ';
+      case SkillType.SCOPE: return 'スコープ';
+      case SkillType.HEAL: return '回復';
+      case SkillType.MINEFIELD: return '地雷設置';
+      case SkillType.BOMB: return '爆弾投げ';
+      default: return 'なし';
+    }
+  }
+  
+  // 武器タイプから表示名を取得
+  private getWeaponDisplayName(weaponType: WeaponType): string {
+    switch (weaponType) {
+      case WeaponType.SHOTGUN: return 'ショットガン';
+      case WeaponType.SNIPER: return 'スナイパーライフル';
+      case WeaponType.MACHINEGUN: return 'マシンガン';
+      case WeaponType.THROWER: return 'グレネードランチャー';
+      default: return 'ハンドガン';
+    }
   }
 
-  // クリーンアップメソッドを強化
-  private cleanupGame(): void {
-    // 既存のボットを削除
-    if (this.enemyBots) {
-      this.enemyBots.forEach(({ bot, ai }) => {
-        if (ai) ai.destroy();
-        if (bot) bot.destroy();
+  // スキルエフェクト表示の強化
+  showSkillEffect(type: SkillType, x: number, y: number): void {
+    // 既存のエフェクトをクリア
+    this.clearSkillAnimationEffects();
+    
+    // スキルタイプに応じたエフェクト
+    switch (type) {
+      case SkillType.SHIELD:
+        this.showShieldEffect(x, y);
+        break;
+      case SkillType.DASH:
+        this.showDashEffect(x, y);
+        break;
+      case SkillType.SCOPE:
+        this.showScopeEffect(x, y);
+        break;
+      case SkillType.HEAL:
+        this.showHealEffect(x, y);
+        break;
+      case SkillType.MINEFIELD:
+        this.showMinefieldEffect(x, y);
+        break;
+      case SkillType.BOMB:
+        this.showBombEffect(x, y);
+        break;
+    }
+  }
+  
+  // スキル使用時のエフェクト表示
+  private showShieldEffect(x: number, y: number): void {
+    // シールドエフェクト（プレイヤーの周りに青い円）
+    const shield = this.add.circle(x, y, 45, 0x00aaff, 0.3)
+      .setStrokeStyle(3, 0x00ffff, 1)
+      .setDepth(50);
+    
+    const shieldHighlight = this.add.circle(x, y, 50, 0x00ffff, 0)
+      .setStrokeStyle(1, 0x00ffff, 0.5)
+      .setDepth(50);
+    
+    // エフェクトのアニメーション（拡大→元のサイズに）
+    this.tweens.add({
+      targets: [shield, shieldHighlight],
+      scale: { from: 0, to: 1 },
+      alpha: { from: 0.8, to: 0.3 },
+      duration: 500,
+      ease: 'Back.easeOut'
+    });
+    
+    // シールドパーティクル
+    const particles = this.add.particles(x, y, 'default', {
+      speed: 100,
+      scale: { start: 0.2, end: 0 },
+      blendMode: 'ADD',
+      tint: 0x00ffff,
+      lifespan: 1000,
+      quantity: 10,
+      frequency: 100
+    })
+    .setDepth(50);
+    
+    this.skillAnimationEffects.push(shield, shieldHighlight, particles);
+    
+    // エフェクトを一定時間後に削除
+    this.time.delayedCall(2000, () => {
+      this.clearSkillAnimationEffects();
+    });
+  }
+  
+  private showDashEffect(x: number, y: number): void {
+    // ダッシュの軌跡エフェクト
+    const trail = this.add.particles(x, y, 'default', {
+      speed: { min: 10, max: 50 },
+      scale: { start: 0.3, end: 0 },
+      blendMode: 'ADD',
+      tint: 0x88ff88,
+      lifespan: 500,
+      quantity: 20
+    })
+    .setDepth(10);
+    
+    this.skillAnimationEffects.push(trail);
+    
+    // エフェクトを一定時間後に削除
+    this.time.delayedCall(800, () => {
+      this.clearSkillAnimationEffects();
+    });
+  }
+  
+  private showScopeEffect(x: number, y: number): void {
+    // スコープのエフェクト（照準円）
+    const outerCircle = this.add.circle(x, y, 55, 0x0000ff, 0)
+      .setStrokeStyle(2, 0x0000ff, 0.5)
+      .setDepth(50);
+    
+    const innerCircle = this.add.circle(x, y, 30, 0x0000ff, 0)
+      .setStrokeStyle(1, 0x0000ff, 0.7)
+      .setDepth(50);
+    
+    // 十字線
+    const crosshair = this.add.graphics()
+      .setPosition(x, y)
+      .setDepth(50);
+    
+    crosshair.lineStyle(1, 0x0000ff, 0.7);
+    crosshair.beginPath();
+    crosshair.moveTo(0, -20);
+    crosshair.lineTo(0, 20);
+    crosshair.moveTo(-20, 0);
+    crosshair.lineTo(20, 0);
+    crosshair.strokePath();
+    
+    this.skillAnimationEffects.push(outerCircle, innerCircle, crosshair);
+    
+    // エフェクトを一定時間後に削除
+    this.time.delayedCall(3000, () => {
+      this.clearSkillAnimationEffects();
+    });
+  }
+  
+  private showHealEffect(x: number, y: number): void {
+    // 回復エフェクト（緑の輝きと上昇する+マーク）
+    const healGlow = this.add.circle(x, y, 40, 0x00ff00, 0.3)
+      .setDepth(50);
+    
+    // 回復パーティクル
+    const particles = this.add.particles(x, y, 'default', {
+      speed: { min: 20, max: 70 },
+      angle: { min: 270, max: 360 },
+      scale: { start: 0.4, end: 0 },
+      blendMode: 'ADD',
+      tint: 0x00ff00,
+      lifespan: 1000,
+      quantity: 20
+    })
+    .setDepth(50);
+    
+    // 回復数値の表示
+    for (let i = 0; i < 3; i++) {
+      const healText = this.add.text(
+        x + Phaser.Math.Between(-30, 30),
+        y,
+        '+' + Phaser.Math.Between(5, 15),
+        { 
+          fontSize: '18px',
+          color: '#00ff00',
+          fontStyle: 'bold'
+        }
+      )
+      .setOrigin(0.5)
+      .setDepth(51);
+      
+      this.tweens.add({
+        targets: healText,
+        y: y - 50,
+        alpha: { from: 1, to: 0 },
+        duration: 1000,
+        delay: i * 300,
+        ease: 'Power1',
+        onComplete: () => {
+          healText.destroy();
+        }
       });
-      this.enemyBots = [];
+      
+      this.skillAnimationEffects.push(healText);
     }
     
-    // 既存のUIをクリア
-    if (this.ui) {
-      this.ui.destroy();
-      this.ui = undefined as unknown as UI;
-    }
+    this.skillAnimationEffects.push(healGlow, particles);
     
-    // 既存のジョイスティックをクリア
-    if (this.moveJoystick) {
-      this.moveJoystick.destroy();
-      this.moveJoystick = undefined;
-    }
+    // エフェクトを一定時間後に削除
+    this.time.delayedCall(1500, () => {
+      this.clearSkillAnimationEffects();
+    });
+  }
+  
+  private showMinefieldEffect(x: number, y: number): void {
+    // 地雷設置エフェクト
+    const mine = this.add.circle(x, y, 15, 0xff0000, 0.7)
+      .setStrokeStyle(2, 0xff5500, 1)
+      .setDepth(5);
     
-    if (this.skillJoystick) {
-      this.skillJoystick.destroy();
-      this.skillJoystick = undefined;
-    }
+    // 点滅エフェクト
+    this.tweens.add({
+      targets: mine,
+      alpha: { from: 0.7, to: 0.3 },
+      yoyo: true,
+      repeat: -1,
+      duration: 500
+    });
     
-    // 既存のスキルクールダウン表示をクリア
-    if (this.skillCooldownDisplay) {
-      this.skillCooldownDisplay.clear();
-      this.skillCooldownDisplay.destroy();
-      this.skillCooldownDisplay = undefined;
-    }
+    // 警告マーク
+    const warningText = this.add.text(x, y - 20, '!', {
+      fontSize: '16px',
+      color: '#ff0000',
+      fontStyle: 'bold'
+    })
+    .setOrigin(0.5)
+    .setDepth(6);
     
-    // 既存のプレイヤーを削除
-    if (this.player) {
-      this.player.destroy();
-      this.player = undefined as unknown as Player;
-    }
+    // 警告マークをアニメーション
+    this.tweens.add({
+      targets: warningText,
+      y: y - 30,
+      alpha: { from: 1, to: 0 },
+      duration: 700,
+      repeat: -1
+    });
     
-    // 既存のマップを削除
-    if (this.map) {
-      this.map.destroy();
-      this.map = undefined as unknown as Map;
-    }
+    this.skillAnimationEffects.push(mine, warningText);
     
-    // 既存のイベントリスナーをクリーンアップ
-    this.input.off('pointerdown');
+    // エフェクトを15秒後に削除（地雷の寿命）
+    this.time.delayedCall(15000, () => {
+      // 消える前に爆発エフェクト
+      this.showExplosionEffect(x, y, 80, 0.5);
+      this.clearSkillAnimationEffects();
+    });
+  }
+  
+  private showBombEffect(x: number, y: number): void {
+    // 爆弾投げエフェクト
+    this.showExplosionEffect(x, y, 100, 1);
+  }
+  
+  // 爆発エフェクト（サイズと強度を調整可能）
+  private showExplosionEffect(x: number, y: number, radius: number, intensity: number): void {
+    // 爆発の光球
+    const explosion = this.add.circle(x, y, radius, 0xff8800, 0.6)
+      .setDepth(50);
+    
+    // 爆発の外輪
+    const explosionRing = this.add.circle(x, y, radius * 0.8, 0xff0000, 0)
+      .setStrokeStyle(4, 0xff8800, 0.8)
+      .setDepth(50);
+    
+    // 爆発の中心が明るいグラデーション
+    const gradient = this.add.circle(x, y, radius * 0.4, 0xffff00, 0.7)
+      .setDepth(51);
+    
+    // 爆発パーティクル
+    const particles = this.add.particles(x, y, 'default', {
+      speed: { min: 50, max: 150 },
+      scale: { start: 0.6, end: 0 },
+      blendMode: 'ADD',
+      tint: 0xff7700,
+      lifespan: 800,
+      quantity: 30 * intensity,
+      emitZone: {
+        type: 'edge',
+        source: new Phaser.Geom.Circle(0, 0, radius * 0.7),
+        quantity: 30 * intensity
+      }
+    })
+    .setDepth(52);
+    
+    // 煙パーティクル
+    const smoke = this.add.particles(x, y, 'default', {
+      speed: { min: 20, max: 70 },
+      scale: { start: 0.8, end: 0 },
+      alpha: { start: 0.3, end: 0 },
+      tint: 0x333333,
+      lifespan: 1500,
+      quantity: 20 * intensity
+    })
+    .setDepth(49);
+    
+    // カメラシェイク
+    this.cameras.main.shake(300 * intensity, 0.01 * intensity);
+    
+    this.skillAnimationEffects.push(explosion, explosionRing, gradient, particles, smoke);
+    
+    // エフェクトのアニメーション
+    this.tweens.add({
+      targets: explosion,
+      scale: { from: 0.2, to: 1.2 },
+      alpha: { from: 0.8, to: 0 },
+      duration: 700,
+      ease: 'Power2'
+    });
+    
+    this.tweens.add({
+      targets: explosionRing,
+      scale: { from: 0.5, to: 1.5 },
+      alpha: { from: 1, to: 0 },
+      duration: 800,
+      ease: 'Power1'
+    });
+    
+    this.tweens.add({
+      targets: gradient,
+      scale: { from: 1.2, to: 0.4 },
+      alpha: { from: 0.9, to: 0 },
+      duration: 500,
+      ease: 'Power3'
+    });
+    
+    // エフェクトを一定時間後に削除
+    this.time.delayedCall(1500, () => {
+      this.clearSkillAnimationEffects();
+    });
+  }
+  
+  // スキルエフェクトをクリア
+  private clearSkillAnimationEffects(): void {
+    this.skillAnimationEffects.forEach(effect => {
+      if (effect && !effect.destroyed) {
+        effect.destroy();
+      }
+    });
+    this.skillAnimationEffects = [];
   }
 
   private createSkillCooldownDisplay(): void {
@@ -679,10 +1140,12 @@ export class TrainingScene extends Phaser.Scene {
       this.soundManager.playSfx('ultimate_activate');
     }
     
-    // ボットAIの更新
-    this.enemyBots.forEach(({ ai }) => {
-      ai.update();
-    });
+    // ボットAIの更新（AIが有効な場合のみ）
+    if (this.aiEnabled) {
+      this.enemyBots.forEach(({ ai }) => {
+        ai.update();
+      });
+    }
     
     // プレイヤーと茂みの判定
     if (this.map && this.map.isInBush(this.player)) {
@@ -694,6 +1157,78 @@ export class TrainingScene extends Phaser.Scene {
     // UI更新
     if (this.ui) {
       this.ui.update();
+    }
+  }
+
+  // クリーンアップメソッドを強化
+  private cleanupGame(): void {
+    // 既存のボットを削除
+    if (this.enemyBots) {
+      this.enemyBots.forEach(({ bot, ai }) => {
+        if (ai) ai.destroy();
+        if (bot) bot.destroy();
+      });
+      this.enemyBots = [];
+    }
+    
+    // 既存のUIをクリア
+    if (this.ui) {
+      this.ui.destroy();
+      this.ui = undefined as unknown as UI;
+    }
+    
+    // 既存のジョイスティックをクリア
+    if (this.moveJoystick) {
+      this.moveJoystick.destroy();
+      this.moveJoystick = undefined;
+    }
+    
+    if (this.skillJoystick) {
+      this.skillJoystick.destroy();
+      this.skillJoystick = undefined;
+    }
+    
+    // 既存のスキルクールダウン表示をクリア
+    if (this.skillCooldownDisplay) {
+      this.skillCooldownDisplay.clear();
+      this.skillCooldownDisplay.destroy();
+      this.skillCooldownDisplay = undefined;
+    }
+    
+    // 既存のプレイヤーを削除
+    if (this.player) {
+      this.player.destroy();
+      this.player = undefined as unknown as Player;
+    }
+    
+    // 既存のマップを削除
+    if (this.map) {
+      this.map.destroy();
+      this.map = undefined as unknown as Map;
+    }
+    
+    // 既存のイベントリスナーをクリーンアップ
+    this.input.off('pointerdown');
+    
+    // スキルエフェクトをクリア
+    this.clearSkillAnimationEffects();
+    
+    // スキル情報表示をクリア
+    if (this.skillInfoText) {
+      this.skillInfoText.destroy();
+      this.skillInfoText = undefined;
+    }
+    
+    // 武器情報表示をクリア
+    if (this.weaponInfoText) {
+      this.weaponInfoText.destroy();
+      this.weaponInfoText = undefined;
+    }
+    
+    // AIトグルボタンをクリア
+    if (this.aiToggleButton) {
+      this.aiToggleButton.destroy();
+      this.aiToggleButton = undefined;
     }
   }
 

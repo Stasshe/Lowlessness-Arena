@@ -2,20 +2,11 @@ import Phaser from 'phaser';
 import { Player } from './Player';
 import { Bullet } from './Bullet';
 
-type WeaponStats = {
-  damage: number;
-  range: number;
-  speed: number;
-  fireRate: number; // 発射間隔（ミリ秒）
-  bulletCount: number; // 1回の攻撃で発射される弾の数
-  spread: number; // 複数発射時の広がり（ラジアン）
-};
-
 export enum WeaponType {
   DEFAULT = 'default',
   SHOTGUN = 'shotgun',
-  SNIPER = 'sniper',
   MACHINEGUN = 'machinegun',
+  SNIPER = 'sniper',
   THROWER = 'thrower'
 }
 
@@ -23,161 +14,183 @@ export class Weapon {
   private scene: Phaser.Scene;
   private owner: Player;
   private type: WeaponType;
-  private stats: WeaponStats;
   private bullets: Phaser.Physics.Arcade.Group;
   private lastFired: number = 0;
-  private rangeMultiplier: number = 1.0; // スキル効果用の射程倍率
+  private cooldown: number = 500; // ミリ秒
+  private bulletSpeed: number = 600;
+  private bulletDamage: number = 20;
+  private bulletRange: number = 400;
+  private bulletsPerShot: number = 1;
+  private spread: number = 0; // 角度でのブレ
+  private rangeMultiplier: number = 1.0;
   
-  constructor(scene: Phaser.Scene, owner: Player, type: string = 'default') {
+  constructor(scene: Phaser.Scene, owner: Player, type: string) {
     this.scene = scene;
     this.owner = owner;
     this.type = type as WeaponType;
-    this.stats = this.getWeaponStats(type);
     
     // 弾のグループを作成
     this.bullets = scene.physics.add.group({
       classType: Bullet,
-      runChildUpdate: true // 子オブジェクトのupdateメソッドを自動的に呼び出す
+      runChildUpdate: true, // 子要素のupdateを自動実行
+      maxSize: 30 // 最大数
     });
+    
+    // 武器タイプに応じた設定
+    this.configureWeapon();
   }
   
-  private getWeaponStats(type: string): WeaponStats {
-    // 武器タイプに応じた性能を返す
-    switch (type) {
-      case 'shotgun':
-        return {
-          damage: 15,
-          range: 300,
-          speed: 500,
-          fireRate: 1000, // 1秒に1発
-          bulletCount: 5, // 5発同時発射
-          spread: Math.PI / 8 // 約22.5度の広がり
-        };
-        
-      case 'machinegun':
-        return {
-          damage: 5,
-          range: 400,
-          speed: 600,
-          fireRate: 200, // 0.2秒に1発
-          bulletCount: 1,
-          spread: 0
-        };
-        
-      case 'sniper':
-        return {
-          damage: 40,
-          range: 800,
-          speed: 1000,
-          fireRate: 1500, // 1.5秒に1発
-          bulletCount: 1,
-          spread: 0
-        };
-        
-      case 'thrower':
-        return {
-          damage: 20,
-          range: 350,
-          speed: 300,
-          fireRate: 800, // 0.8秒に1発
-          bulletCount: 3, // 3発同時発射
-          spread: Math.PI / 12 // 約15度の広がり
-        };
-        
-      default: // デフォルト武器
-        return {
-          damage: 10,
-          range: 400,
-          speed: 500,
-          fireRate: 500, // 0.5秒に1発
-          bulletCount: 1,
-          spread: 0
-        };
+  /**
+   * 武器タイプに応じたパラメータを設定
+   */
+  private configureWeapon(): void {
+    switch (this.type) {
+      case WeaponType.SHOTGUN:
+        this.cooldown = 1000;
+        this.bulletSpeed = 500;
+        this.bulletDamage = 15;
+        this.bulletRange = 250;
+        this.bulletsPerShot = 5;
+        this.spread = 0.3; // ラジアン
+        break;
+      
+      case WeaponType.MACHINEGUN:
+        this.cooldown = 150;
+        this.bulletSpeed = 700;
+        this.bulletDamage = 10;
+        this.bulletRange = 350;
+        this.bulletsPerShot = 1;
+        this.spread = 0.1;
+        break;
+      
+      case WeaponType.SNIPER:
+        this.cooldown = 1500;
+        this.bulletSpeed = 1000;
+        this.bulletDamage = 50;
+        this.bulletRange = 800;
+        this.bulletsPerShot = 1;
+        this.spread = 0.01;
+        break;
+      
+      case WeaponType.THROWER:
+        this.cooldown = 1200;
+        this.bulletSpeed = 400;
+        this.bulletDamage = 30;
+        this.bulletRange = 300;
+        this.bulletsPerShot = 1;
+        this.spread = 0.05;
+        break;
+      
+      default: // DEFAULT
+        this.cooldown = 500;
+        this.bulletSpeed = 600;
+        this.bulletDamage = 20;
+        this.bulletRange = 400;
+        this.bulletsPerShot = 1;
+        this.spread = 0.03;
+        break;
     }
   }
   
+  /**
+   * 発射処理
+   */
   fire(angle: number): void {
     const time = this.scene.time.now;
     
-    // 発射間隔をチェック
-    if (time < this.lastFired + this.stats.fireRate) {
+    // クールダウンチェック
+    if (time < this.lastFired + this.cooldown) {
       return;
     }
     
+    // クールダウンを更新
     this.lastFired = time;
     
-    // 発射位置（プレイヤーの位置から少し前方）
-    const offsetX = Math.cos(angle) * 20;
-    const offsetY = Math.sin(angle) * 20;
-    const startX = this.owner.x + offsetX;
-    const startY = this.owner.y + offsetY;
-    
-    // 発射音 - サウンドが読み込まれているかチェック
-    try {
-      if (this.scene.sound.get('shoot')) {
-        this.scene.sound.play('shoot');
+    // 弾を発射
+    for (let i = 0; i < this.bulletsPerShot; i++) {
+      // 弾のばらつき角度を計算
+      let bulletAngle = angle;
+      if (this.spread > 0 && this.bulletsPerShot > 1) {
+        // 複数弾の場合、扇状に広がるように
+        const spreadAngle = this.spread * (i - (this.bulletsPerShot - 1) / 2) / (this.bulletsPerShot - 1);
+        bulletAngle += spreadAngle;
+      } else if (this.spread > 0) {
+        // 単発弾の場合、ランダムなブレを加える
+        bulletAngle += (Math.random() - 0.5) * this.spread;
       }
-    } catch (e) {
-      console.warn('サウンド再生エラー:', e);
-    }
-    
-    // 複数発射の場合はスプレッド（広がり）を計算
-    if (this.stats.bulletCount > 1) {
-      // スプレッドの計算（中心から両側に広がるように）
-      const totalSpread = this.stats.spread;
-      const spreadStep = totalSpread / (this.stats.bulletCount - 1);
-      const startAngle = angle - totalSpread / 2;
       
-      for (let i = 0; i < this.stats.bulletCount; i++) {
-        const bulletAngle = startAngle + spreadStep * i;
-        this.fireBullet(startX, startY, bulletAngle);
+      // 弾を取得（または作成）
+      const bullet = this.bullets.get(this.owner.x, this.owner.y) as Bullet;
+      
+      if (bullet) {
+        // ショットガンかグレネードランチャーの場合は特殊な設定
+        if (this.type === WeaponType.THROWER) {
+          bullet.setBulletType('explosive');
+        } else if (this.type === WeaponType.SNIPER) {
+          bullet.setBulletType('sniper');
+        }
+        
+        // 弾を発射
+        bullet.fire(
+          this.owner.x, 
+          this.owner.y, 
+          bulletAngle, 
+          this.bulletSpeed, 
+          this.bulletDamage, 
+          this.bulletRange * this.rangeMultiplier
+        );
       }
-    } else {
-      // 単発発射
-      this.fireBullet(startX, startY, angle);
+    }
+    
+    // 発射音を再生
+    try {
+      this.scene.sound.play('shoot');
+    } catch (e) {
+      console.warn('発射音の再生に失敗:', e);
     }
   }
   
-  private fireBullet(startX: number, startY: number, angle: number): void {
-    // 弾を取得（非アクティブなものを再利用するか、新しく作成）
-    const bullet = this.bullets.get(startX, startY) as Bullet;
-    if (bullet) {
-      bullet.fire(
-        startX, 
-        startY, 
-        angle, 
-        this.stats.speed, 
-        this.stats.damage, 
-        this.stats.range * this.rangeMultiplier // 射程に倍率を適用
-      );
-    }
-  }
-  
+  /**
+   * 弾のグループを取得
+   */
   getBullets(): Phaser.Physics.Arcade.Group {
     return this.bullets;
   }
   
-  // スキル効果を適用するメソッド
-  applySkillEffect(effectType: string, value: number): void {
-    switch (effectType) {
-      case 'rangeMultiplier':
-        this.rangeMultiplier = value;
-        break;
-      // 他のスキル効果もここに追加可能
-      default:
-        console.warn('未知のスキル効果タイプ:', effectType);
-    }
-  }
-
+  /**
+   * 射程範囲を取得
+   */
   getRange(): number {
-    return this.stats.range;
+    return this.bulletRange * this.rangeMultiplier;
   }
   
-  setRangeMultiplier(value: number): void {
-    this.rangeMultiplier = value;
+  /**
+   * 射程倍率を設定（スコープ等のスキル用）
+   */
+  setRangeMultiplier(multiplier: number): void {
+    this.rangeMultiplier = multiplier;
   }
   
+  /**
+   * 射程倍率をリセット
+   */
   resetRangeMultiplier(): void {
     this.rangeMultiplier = 1.0;
+  }
+  
+  /**
+   * 武器の種類を取得
+   */
+  getType(): string {
+    return this.type;
+  }
+  
+  /**
+   * リソース解放
+   */
+  destroy(): void {
+    if (this.bullets) {
+      this.bullets.clear(true, true);
+    }
   }
 }

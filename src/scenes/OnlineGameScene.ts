@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GameConfig, GameMode } from '../config/GameConfig';
+import { GameConfig } from '../config/GameConfig';
 import { Player } from '../objects/Player';
 import { VirtualJoystick } from '../utils/VirtualJoystick';
 import { Map } from '../objects/Map';
@@ -7,21 +7,13 @@ import { UI } from '../ui/UI';
 import { CharacterFactory, CharacterType } from '../characters/CharacterFactory';
 import { SoundManager } from '../utils/SoundManager';
 import { FirebaseManager } from '../firebase/FirebaseManager';
-import { 
-  doc, 
-  onSnapshot, 
-  collection, 
-  query, 
-  where, 
-  orderBy, 
-  limit 
-} from 'firebase/firestore';
-import { Bullet } from '../objects/Bullet';
+import { GameEffects } from '../utils/GameEffects';
 
 export class OnlineGameScene extends Phaser.Scene {
   private player!: Player;
-  private opponent?: Player;
-  private opponentId: string = '';
+  // JavaScriptのMapはジェネリック型なので正確に型指定する
+  private otherPlayers: Map<string, Player> = new Map<string, Player>();
+  private playerSubscriptions: Map<string, () => void> = new Map<string, () => void>();
   private map!: Map;
   private joystick?: VirtualJoystick;
   private ui!: UI;
@@ -29,410 +21,367 @@ export class OnlineGameScene extends Phaser.Scene {
   private isMobile: boolean = false;
   private soundManager!: SoundManager;
   private characterFactory!: CharacterFactory;
+  private moveJoystick?: VirtualJoystick;
+  private skillJoystick?: VirtualJoystick;
+  private gameEffects!: GameEffects;
   private firebaseManager!: FirebaseManager;
-  private syncInterval: number = 100; // ミリ秒
-  private lastSyncTime: number = 0;
-  private gameStarted: boolean = false;
-  private gameOver: boolean = false;
-  private playerReady: boolean = false;
-  private opponentReady: boolean = false;
-  private matchCountdown: number = 5;
-  private countdownTimer?: Phaser.Time.TimerEvent;
-  private countdownText?: Phaser.GameObjects.Text;
-  private playerStateUnsubscribe?: () => void;
-  private playerActionsUnsubscribe?: () => void;
+  private isGameStarted: boolean = false;
+  private isGameOver: boolean = false;
+  private lastUpdateTimestamp: number = 0;
+  private positionUpdateInterval: number = 100; // 0.1秒ごとに位置を送信
+  private playerCharacterType: CharacterType = CharacterType.DEFAULT;
   
   constructor() {
     super('OnlineGameScene');
   }
   
   init(data: any) {
-    this.gameStarted = false;
-    this.gameOver = false;
-    this.playerReady = false;
-    this.opponentReady = false;
-    this.firebaseManager = data.firebaseManager;
-  }
-
-  preload() {
-    // アセットのロード
-    this.loadAssets();
-  }
-
-  private loadAssets(): void {
-    // マップ関連アセット - より高品質なアセットを指定
-    this.load.image('grass', 'assets/tiles/grass.png');
-    this.load.image('wall', 'assets/tiles/wall.png');
-    this.load.image('boundary', 'assets/tiles/boundary.png');
-    this.load.image('bush', 'assets/tiles/bush.png');
-    this.load.image('spawn', 'assets/tiles/spawn.png');
+    // シーン初期化時にFirebaseManagerを受け取る
+    if (data && data.firebaseManager) {
+      this.firebaseManager = data.firebaseManager;
+    } else {
+      // 直接アクセスされた場合はロビーシーンに戻す
+      this.scene.start('LobbyScene');
+      return;
+    }
     
-    // UIアセット
-    this.load.image('button', 'assets/ui/button.png');
-    this.load.image('healthbar', 'assets/ui/healthbar.png');
-    this.load.image('joystick', 'assets/ui/joystick.png');
-    this.load.image('joystick-base', 'assets/ui/joystick-base.png');
-    
-    // プレイヤーアセット
-    this.load.image('player', 'assets/characters/player.png');
-    this.load.image('bullet', 'assets/weapons/bullet.png');
-    
-    // デフォルトアセット
-    this.load.image('default', 'assets/default.png');
-  }
-
-  create() {
-    GameConfig.currentMode = GameMode.ONLINE;
+    // シーンをリセット
+    this.otherPlayers = new Map();
+    this.playerSubscriptions = new Map();
+    this.isGameStarted = false;
+    this.isGameOver = false;
     
     // モバイルデバイス判定
     this.isMobile = !this.sys.game.device.os.desktop;
-    
+  }
+  
+  preload() {
+    // 必要なアセットをロード
+    this.load.image('online_player', 'assets/characters/player.png');
+    // ...その他必要なアセット
+  }
+  
+  create() {
     // サウンドマネージャーの初期化
     this.soundManager = new SoundManager(this);
+    
+    // ゲームエフェクトの初期化
+    this.gameEffects = new GameEffects(this);
     
     // キャラクターファクトリーの初期化
     this.characterFactory = new CharacterFactory(this);
     
-    // マップの作成
+    // 接続中表示
+    const connectingText = this.add.text(
+      this.cameras.main.width / 2,
+      this.cameras.main.height / 2,
+      'プレイヤーの参加を待っています...',
+      { fontSize: '24px', color: '#ffffff' }
+    ).setOrigin(0.5).setScrollFactor(0);
+    
+    // マップを作成
     this.map = new Map(this);
     
-    // キーボード入力の設定
+    // キーボード入力を設定
     this.cursors = this.input.keyboard!.createCursorKeys();
     
-    // モバイルの場合はバーチャルジョイスティックを作成
+    // モバイルの場合はジョイスティックを作成
     if (this.isMobile) {
-      this.joystick = new VirtualJoystick(this);
+      this.moveJoystick = new VirtualJoystick(this, false);
+      this.skillJoystick = new VirtualJoystick(this, true);
     }
     
-    // プレイヤーの作成
-    const spawnPoint = this.map.getSpawnPoint();
-    this.player = this.characterFactory.createCharacter(CharacterType.DEFAULT, spawnPoint.x, spawnPoint.y);
-    
-    // カメラの設定
-    this.cameras.main.startFollow(this.player);
-    this.cameras.main.setZoom(1);
-    
-    // UI の作成
-    this.ui = new UI(this, this.player);
-    
-    // 衝突判定の設定
-    this.setupCollisions();
-    
-    // 攻撃の設定（クリックかタップで攻撃）
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (this.gameStarted && !this.gameOver && !this.joystick?.isBeingUsed(pointer)) {
-        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-        this.player.attack(worldPoint.x, worldPoint.y);
-        
-        // 攻撃情報をFirebaseに送信
-        this.firebaseManager.sendPlayerAction('attack', worldPoint.x, worldPoint.y);
+    // ゲーム状態の監視
+    this.firebaseManager.subscribeToGameUpdates((gameData) => {
+      // ゲームの状態をチェック
+      if (gameData.status === 'playing' && !this.isGameStarted) {
+        // ゲーム開始
+        this.startGame();
+        connectingText.destroy();
+      } else if (gameData.status === 'finished' && !this.isGameOver) {
+        // ゲーム終了
+        this.endGame();
       }
     });
     
-    // バックボタン（デバッグ用）
-    const backButton = this.add.text(16, 16, 'メニューに戻る', { 
-      fontSize: '18px', 
+    // プレイヤーの参加・退出を監視
+    this.firebaseManager.subscribeToPlayerUpdates(
+      (playerId) => this.onPlayerJoined(playerId),
+      (playerId) => this.onPlayerLeft(playerId)
+    );
+    
+    // 自分のプレイヤーを初期化
+    this.initializePlayer();
+    
+    // 戻るボタン
+    this.add.text(16, 16, '← 退出', {
+      fontSize: '18px',
       color: '#ffffff',
-      backgroundColor: '#000000',
+      backgroundColor: '#aa0000',
       padding: { x: 10, y: 5 }
     })
     .setScrollFactor(0)
     .setDepth(100)
     .setInteractive({ useHandCursor: true })
-    .on('pointerdown', async () => {
-      await this.firebaseManager.leaveGame();
-      this.scene.start('MainMenuScene');
+    .on('pointerdown', () => {
+      this.leaveGame();
     });
-    
-    // 対戦相手の参加を監視
-    this.firebaseManager.subscribeToPlayerUpdates(
-      this.handlePlayerJoined.bind(this),
-      this.handlePlayerLeft.bind(this)
-    );
-    
-    // ゲーム状態の更新を監視
-    this.firebaseManager.subscribeToGameUpdates(this.handleGameUpdate.bind(this));
-    
-    // プレイヤーの準備完了
-    this.firebaseManager.setPlayerReady(true);
-    this.playerReady = true;
-    
-    // カウントダウンテキストを作成（初期は非表示）
-    this.countdownText = this.add.text(
-      this.cameras.main.width / 2,
-      this.cameras.main.height / 2,
-      '', 
-      { fontSize: '64px', color: '#ffffff' }
-    )
-    .setOrigin(0.5)
-    .setScrollFactor(0)
-    .setDepth(1000)
-    .setVisible(false);
     
     // BGM再生
     this.soundManager.playMusic('game_bgm');
+    
+    // もし既にplaying状態の場合（再接続時など）
+    this.checkGameStatus();
   }
   
-  private handlePlayerJoined(playerId: string): void {
-    console.log('Player joined:', playerId);
-    this.opponentId = playerId;
-    
-    // 対戦相手のプレイヤーを作成
-    const spawnPoint = { x: 1500, y: 500 }; // マップの反対側にスポーン
-    this.opponent = this.characterFactory.createCharacter(CharacterType.TANK, spawnPoint.x, spawnPoint.y);
-    
-    // 対戦相手の動きを監視するリスナーを設定
-    this.subscribeToOpponentMovements();
-    
-    // 対戦相手の準備完了を待つ
-    this.showWaitingMessage();
-  }
-  
-  private handlePlayerLeft(playerId: string): void {
-    console.log('Player left:', playerId);
-    
-    if (playerId === this.opponentId) {
-      this.showMessage('対戦相手が退出しました');
+  private async initializePlayer() {
+    try {
+      // スポーン地点を取得
+      const spawnPoint = this.map.getSpawnPoint();
       
-      // 5秒後にメニューに戻る
-      this.time.delayedCall(5000, async () => {
-        await this.firebaseManager.leaveGame();
-        this.scene.start('MainMenuScene');
-      });
-    }
-  }
-  
-  private handleGameUpdate(gameData: any): void {
-    console.log('Game updated:', gameData);
-    
-    // ゲームの状態によって処理を変える
-    if (gameData.status === 'playing' && !this.gameStarted) {
-      this.startMatch();
-    } else if (gameData.status === 'finished') {
-      this.endMatch(gameData.winnerId === this.firebaseManager.getUserId());
-    }
-  }
-  
-  private showWaitingMessage(): void {
-    const waitingText = this.add.text(
-      this.cameras.main.width / 2,
-      this.cameras.main.height / 2,
-      '対戦相手の準備を待っています...', 
-      { fontSize: '24px', color: '#ffffff' }
-    )
-    .setOrigin(0.5)
-    .setScrollFactor(0)
-    .setDepth(100);
-    
-    // 対戦相手が準備完了したらメッセージを消す
-    this.time.addEvent({
-      delay: 500,
-      loop: true,
-      callback: () => {
-        if (this.opponentReady || this.gameStarted) {
-          waitingText.destroy();
-        }
+      // プレイヤーを作成
+      this.player = this.characterFactory.createCharacter(CharacterType.DEFAULT, spawnPoint.x, spawnPoint.y);
+      
+      // カメラをプレイヤーに追従
+      this.cameras.main.startFollow(this.player);
+      
+      // UIを作成
+      this.ui = new UI(this, this.player);
+      
+      // 最初の位置を送信
+      await this.firebaseManager.updatePlayerPosition(spawnPoint.x, spawnPoint.y, 0);
+      
+      // プレイヤーが2人揃ったらゲーム開始
+      const gameDoc = await this.firebaseManager.getDb()
+        .doc(`games/${this.firebaseManager.getGameId()}`)
+        .get();
+      
+      if (gameDoc.exists && gameDoc.data()?.playerCount >= 2) {
+        await this.firebaseManager.updateGameState('playing');
       }
-    });
+    } catch (error) {
+      console.error('プレイヤー初期化エラー:', error);
+    }
   }
   
-  private startMatch(): void {
-    // カウントダウン開始
-    this.countdownText?.setVisible(true);
-    this.matchCountdown = 3;
-    this.updateCountdownText();
+  private startGame() {
+    this.isGameStarted = true;
     
-    this.soundManager.playSfx('countdown');
+    // カウントダウン表示
+    this.gameEffects.showCountdown(() => {
+      // カウントダウン後の処理
+      this.showMessage('ゲーム開始！', 1500);
+    });
     
-    this.countdownTimer = this.time.addEvent({
-      delay: 1000,
-      repeat: this.matchCountdown - 1,
-      callback: () => {
-        this.matchCountdown--;
-        this.updateCountdownText();
-        this.soundManager.playSfx('countdown');
+    // 衝突判定を設定
+    this.setupCollisions();
+    
+    // 攻撃の設定
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // ジョイスティックの操作でなく、UIボタン上でもない場合のみ攻撃
+      if ((!this.moveJoystick || !this.moveJoystick.isBeingUsed(pointer)) && 
+          (!this.skillJoystick || !this.skillJoystick.isBeingUsed(pointer))) {
+        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        this.player.attack(worldPoint.x, worldPoint.y);
         
-        if (this.matchCountdown <= 0) {
-          this.gameStarted = true;
-          this.countdownText?.setVisible(false);
-          this.soundManager.playSfx('skill_activate'); // 試合開始音
-        }
+        // 攻撃アクションを送信
+        this.firebaseManager.sendPlayerAction('attack', worldPoint.x, worldPoint.y);
       }
     });
   }
   
-  private updateCountdownText(): void {
-    if (this.countdownText) {
-      this.countdownText.setText(this.matchCountdown > 0 ? this.matchCountdown.toString() : 'START!');
-      
-      // テキストを一時的に大きくしてからもとに戻す演出
-      this.countdownText.setScale(1.5);
-      this.tweens.add({
-        targets: this.countdownText,
-        scale: 1,
-        duration: 500,
-        ease: 'Bounce.Out'
-      });
-    }
-  }
-  
-  private endMatch(isWinner: boolean): void {
-    this.gameOver = true;
+  private endGame() {
+    this.isGameOver = true;
     
-    // 勝敗メッセージを表示
-    const resultText = this.add.text(
-      this.cameras.main.width / 2,
-      this.cameras.main.height / 2,
-      isWinner ? 'YOU WIN!' : 'YOU LOSE', 
-      { fontSize: '64px', color: isWinner ? '#ffff00' : '#ff0000' }
-    )
-    .setOrigin(0.5)
-    .setScrollFactor(0)
-    .setDepth(1000);
+    // ゲーム終了表示
+    this.gameEffects.showVictoryEffect();
     
-    // 演出効果
-    this.tweens.add({
-      targets: resultText,
-      scale: { from: 0.5, to: 1 },
-      alpha: { from: 0, to: 1 },
-      duration: 1000,
-      ease: 'Bounce.Out'
-    });
-    
-    // 効果音を鳴らす
-    this.soundManager.playSfx(isWinner ? 'victory_bgm' : 'player_death');
-    
-    // 5秒後にメニューに戻る
-    this.time.delayedCall(5000, async () => {
-      await this.firebaseManager.leaveGame();
-      this.scene.start('MainMenuScene');
+    // 5秒後にロビーに戻る
+    this.time.delayedCall(5000, () => {
+      this.leaveGame();
     });
   }
   
-  private showMessage(message: string): void {
-    const messageText = this.add.text(
-      this.cameras.main.width / 2,
-      this.cameras.main.height / 3,
-      message, 
-      { fontSize: '24px', color: '#ffffff', backgroundColor: '#000000', padding: { x: 20, y: 10 } }
-    )
-    .setOrigin(0.5)
-    .setScrollFactor(0)
-    .setDepth(1000);
-    
-    // 3秒後にメッセージを消す
-    this.time.delayedCall(3000, () => {
-      messageText.destroy();
-    });
-  }
-  
-  private setupCollisions(): void {
+  private setupCollisions() {
     // プレイヤーと壁の衝突
     this.physics.add.collider(this.player, this.map.getWalls());
     
-    // 弾と壁の衝突
+    // 他のプレイヤーと壁の衝突
+    this.otherPlayers.forEach(otherPlayer => {
+      this.physics.add.collider(otherPlayer, this.map.getWalls());
+    });
+    
+    // 弾丸と壁の衝突
+    const playerBullets = this.player.getWeapon().getBullets();
     this.physics.add.collider(
-      this.player.getWeapon().getBullets(),
+      playerBullets,
       this.map.getWalls(),
-      // 型キャストを修正
-      (bulletObj, wall) => {
-        // Arcade Physicsの衝突オブジェクトを正しく扱う
-        if (bulletObj instanceof Phaser.Physics.Arcade.Sprite) {
-          const bullet = bulletObj as Bullet;
-          bullet.onHit();
+      (bullet: Phaser.GameObjects.GameObject) => {
+        if ((bullet as Phaser.Physics.Arcade.Sprite).active) {
+          ((bullet as any) as Bullet).onHit();
         }
-      },
-      undefined,
-      this
+      }
     );
     
-    // 相手がいる場合は相手との衝突も設定
-    if (this.opponent) {
-      // 相手プレイヤーと壁の衝突
-      this.physics.add.collider(this.opponent, this.map.getWalls());
-      
-      // プレイヤーの弾と対戦相手の衝突
-      this.physics.add.overlap(
-        this.player.getWeapon().getBullets(),
-        this.opponent,
-        // 型キャストを修正
-        (bulletObj, enemy) => {
-          try {
-            // Arcade Physicsの衝突オブジェクトを正しく扱う
-            if (bulletObj instanceof Phaser.Physics.Arcade.Sprite && enemy instanceof Phaser.Physics.Arcade.Sprite) {
-              const bullet = bulletObj as Bullet;
-              const enemyPlayer = enemy as Player;
-              
-              // ダメージ計算と適用
-              const damage = bullet.getDamage();
-              enemyPlayer.takeDamage(damage);
-              
-              // ヒットエフェクト
-              bullet.onHit();
-              
-              // 効果音
-              this.soundManager.playSfx('hit');
-              
-              // 相手のHPがゼロになったらゲーム終了
-              if (enemyPlayer.getHealth() <= 0 && !this.gameOver) {
-                this.firebaseManager.updateGameState('finished');
-              }
-            }
-          } catch (e) {
-            console.warn('対戦相手ダメージ処理エラー:', e);
-          }
-        },
-        undefined,
-        this
-      );
-      
-      // 対戦相手の弾とプレイヤーの衝突
-      if (this.opponent.getWeapon()) {
-        this.physics.add.overlap(
-          this.opponent.getWeapon().getBullets(),
-          this.player,
-          // 型キャストを修正
-          (bulletObj, playerObj) => {
-            try {
-              // Arcade Physicsの衝突オブジェクトを正しく扱う
-              if (bulletObj instanceof Phaser.Physics.Arcade.Sprite && playerObj instanceof Phaser.Physics.Arcade.Sprite) {
-                const bullet = bulletObj as Bullet;
-                
-                // ダメージ計算と適用
-                const damage = bullet.getDamage();
-                this.player.takeDamage(damage);
-                
-                // ヒットエフェクト
-                bullet.onHit();
-                
-                // 効果音
-                this.soundManager.playSfx('player_damage');
-                
-                // 自分のHPがゼロになったらゲーム終了
-                if (this.player.getHealth() <= 0 && !this.gameOver) {
-                  this.firebaseManager.updateGameState('finished');
-                }
-              }
-            } catch (e) {
-              console.warn('プレイヤーダメージ処理エラー:', e);
-            }
-          },
-          undefined,
-          this
-        );
+    // プレイヤーが茂みに入ったかを検知
+    this.physics.add.overlap(
+      this.player,
+      this.map.getBushes(),
+      () => {
+        this.player.enterBush();
       }
+    );
+  }
+  
+  private onPlayerJoined(playerId: string) {
+    // 新しいプレイヤーの状態を監視するためのリスナーを設定
+    const unsubscribe = this.firebaseManager.subscribeToPlayerState(
+      playerId,
+      (playerState) => {
+        if (!playerState) return;
+        
+        // まだ作成されていなければ、他プレイヤーのオブジェクトを作成
+        if (!this.otherPlayers.has(playerId)) {
+          // 初期位置で他プレイヤーを作成
+          const otherPlayer = this.characterFactory.createCharacter(
+            CharacterType.DEFAULT,
+            playerState.position?.x || 100,
+            playerState.position?.y || 100
+          );
+          
+          // 他プレイヤーの設定
+          otherPlayer.setTint(0x0000ff); // 敵は青色に
+          
+          this.otherPlayers.set(playerId, otherPlayer);
+        }
+        
+        // 既存のプレイヤーの位置を更新
+        const otherPlayer = this.otherPlayers.get(playerId);
+        if (otherPlayer && playerState.position) {
+          otherPlayer.setPosition(playerState.position.x, playerState.position.y);
+          otherPlayer.setRotation(playerState.rotation || 0);
+        }
+      }
+    );
+    
+    // アクションリスナーを設定
+    const actionUnsubscribe = this.firebaseManager.subscribeToPlayerActions(
+      playerId,
+      (action) => {
+        // 他プレイヤーのアクション処理
+        const otherPlayer = this.otherPlayers.get(playerId);
+        if (!otherPlayer) return;
+        
+        switch (action.action) {
+          case 'attack':
+            otherPlayer.attack(action.target.x, action.target.y);
+            break;
+          case 'skill':
+            otherPlayer.useSkill();
+            break;
+          case 'ultimate':
+            otherPlayer.useUltimate();
+            break;
+        }
+      }
+    );
+    
+    // リスナーを記録
+    this.playerSubscriptions.set(playerId, () => {
+      unsubscribe();
+      actionUnsubscribe();
+    });
+  }
+  
+  private onPlayerLeft(playerId: string) {
+    // リスナーを解除
+    const unsubscribe = this.playerSubscriptions.get(playerId);
+    if (unsubscribe) {
+      unsubscribe();
+      this.playerSubscriptions.delete(playerId);
+    }
+    
+    // プレイヤーオブジェクトを削除
+    const otherPlayer = this.otherPlayers.get(playerId);
+    if (otherPlayer) {
+      otherPlayer.destroy();
+      this.otherPlayers.delete(playerId);
+    }
+    
+    // プレイヤーが離脱したメッセージを表示
+    this.showMessage('対戦相手が退出しました', 2000);
+    
+    // 自動的に勝利状態にする
+    if (this.isGameStarted && !this.isGameOver) {
+      this.gameEffects.showVictoryEffect();
+      this.soundManager.playMusic('victory_bgm');
+      
+      // 5秒後にロビーに戻る
+      this.time.delayedCall(5000, () => {
+        this.leaveGame();
+      });
     }
   }
-
-  update(time: number, delta: number) {
-    // ゲームが始まっていない場合は更新しない
-    if (!this.gameStarted || this.gameOver) return;
+  
+  private leaveGame() {
+    // ゲームから退出
+    this.firebaseManager.leaveGame().then(() => {
+      // ロビーシーンに戻る
+      this.scene.start('LobbyScene');
+    });
     
-    // プレイヤー移動処理
-    if (this.isMobile && this.joystick) {
-      // モバイル: ジョイスティックの入力で移動
-      const joyVector = this.joystick.getVector();
-      this.player.move(joyVector.x, joyVector.y);
+    // リスナーを全て解除
+    this.playerSubscriptions.forEach(unsubscribe => unsubscribe());
+    this.playerSubscriptions.clear();
+  }
+  
+  private showMessage(text: string, duration: number = 2000) {
+    const message = this.add.text(
+      this.cameras.main.width / 2,
+      this.cameras.main.height / 3,
+      text,
+      {
+        fontSize: '28px',
+        color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 4
+      }
+    )
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(100)
+    .setAlpha(0);
+    
+    // フェードインアニメーション
+    this.tweens.add({
+      targets: message,
+      alpha: 1,
+      y: this.cameras.main.height / 3 - 50,
+      duration: 500,
+      ease: 'Power2',
+      onComplete: () => {
+        // フェードアウト
+        this.tweens.add({
+          targets: message,
+          alpha: 0,
+          delay: duration,
+          duration: 500,
+          ease: 'Power2',
+          onComplete: () => {
+            message.destroy();
+          }
+        });
+      }
+    });
+  }
+  
+  update(time: number, delta: number) {
+    if (!this.player || this.isGameOver) return;
+    
+    // プレイヤー移動処理 - タッチスクリーンでは移動ジョイスティックを使用
+    if (this.moveJoystick) {
+      const moveVector = this.moveJoystick.getVector();
+      this.player.move(moveVector.x, moveVector.y);
     } else {
       // デスクトップ: キーボードの入力で移動
       const directionX = Number(this.cursors.right.isDown) - Number(this.cursors.left.isDown);
@@ -440,103 +389,116 @@ export class OnlineGameScene extends Phaser.Scene {
       this.player.move(directionX, directionY);
     }
     
-    // プレイヤーと茂みの判定
-    if (this.map.isInBush(this.player)) {
-      this.player.enterBush();
-    } else {
-      this.player.exitBush();
+    // スキルジョイスティックでスキル使用
+    if (this.skillJoystick) {
+      const skillVector = this.skillJoystick.getVector();
+      const vectorLength = this.skillJoystick.length();
+      
+      if (vectorLength > 0) {
+        // スキルジョイスティックが操作されている場合
+        const targetPos = this.skillJoystick.getTargetWorldPosition();
+        if (targetPos) {
+          // スキルの方向が設定された状態で操作が終了したらスキル発動
+          if (!this.skillJoystick.isBeingUsed(this.input.activePointer) && 
+              this.player.canUseSkill()) {
+            this.player.useSkill(targetPos.x, targetPos.y);
+            this.firebaseManager.sendSkillAction();
+            this.soundManager.playSfx('skill_activate');
+          }
+        }
+      }
     }
     
-    // 対戦相手と茂みの判定
-    if (this.opponent && this.map.isInBush(this.opponent)) {
-      this.opponent.enterBush();
-    } else if (this.opponent) {
-      this.opponent.exitBush();
+    // キーボード入力でスキル使用
+    if (Phaser.Input.Keyboard.JustDown(this.input.keyboard!.addKey('SPACE')) && 
+        this.player.canUseSkill()) {
+      // スペースキーでスキル発動（前方向）
+      const angle = this.player.rotation;
+      const targetX = this.player.x + Math.cos(angle) * 200;
+      const targetY = this.player.y + Math.sin(angle) * 200;
+      this.player.useSkill(targetX, targetY);
+      this.firebaseManager.sendSkillAction();
+      this.soundManager.playSfx('skill_activate');
     }
     
-    // UI更新
-    this.ui.update();
-    
-    // 一定間隔でプレイヤー位置を同期
-    if (time > this.lastSyncTime + this.syncInterval) {
-      this.lastSyncTime = time;
-      this.syncPlayerPosition();
+    // アルティメットスキル発動（Qキー）
+    if (Phaser.Input.Keyboard.JustDown(this.input.keyboard!.addKey('Q')) && 
+        this.player.canUseUltimate()) {
+      this.player.useUltimate();
+      this.firebaseManager.sendUltimateAction();
+      this.soundManager.playSfx('ultimate_activate');
     }
-  }
-  
-  private syncPlayerPosition(): void {
-    if (this.gameStarted && !this.gameOver) {
-      // 自分の位置をFirebaseに送信
+    
+    // プレイヤー位置の更新を一定間隔で送信
+    if (this.isGameStarted && time > this.lastUpdateTimestamp + this.positionUpdateInterval) {
+      this.lastUpdateTimestamp = time;
       this.firebaseManager.updatePlayerPosition(
         this.player.x,
         this.player.y,
         this.player.rotation
       );
     }
+    
+    // プレイヤーと茂みの判定（各フレームごとにチェック）
+    if (this.map.isInBush(this.player)) {
+      this.player.enterBush();
+    } else {
+      this.player.exitBush();
+    }
+    
+    // UI更新
+    if (this.ui) {
+      this.ui.update();
+    }
   }
   
-  // シーン開始時に対戦相手の動きを監視するリスナーを設定
-  private subscribeToOpponentMovements(): void {
-    if (!this.firebaseManager.getGameId() || !this.opponent || !this.opponentId) return;
+  shutdown() {
+    // シーン終了時の後処理
+    this.leaveGame();
+    this.soundManager.stopAll();
     
-    const gameId = this.firebaseManager.getGameId() as string;
+    // リソース解放
+    if (this.moveJoystick) {
+      this.moveJoystick.destroy();
+    }
     
-    // 対戦相手の位置情報を監視
-    this.playerStateUnsubscribe = this.firebaseManager.subscribeToPlayerState(
-      this.opponentId,
-      (data) => {
-        if (this.opponent && data.position) {
-          // 対戦相手の位置を更新
-          this.opponent.x = data.position.x;
-          this.opponent.y = data.position.y;
-          this.opponent.rotation = data.rotation;
-        }
-      }
-    );
+    if (this.skillJoystick) {
+      this.skillJoystick.destroy();
+    }
     
-    // 対戦相手のアクションを監視
-    this.playerActionsUnsubscribe = this.firebaseManager.subscribeToPlayerActions(
-      this.opponentId,
-      (action) => {
-        if (!this.opponent) return;
-        
-        // アクションタイプに応じた処理
-        switch (action.action) {
-          case 'attack':
-            // 対戦相手が攻撃したらその方向に向かって攻撃モーションを再生
-            if (action.target) {
-              this.opponent.attack(action.target.x, action.target.y);
-              this.soundManager.playSfx('shoot');
+    if (this.ui) {
+      this.ui.destroy();
+    }
+    
+    if (this.map) {
+      this.map.destroy();
+    }
+    
+    // イベントリスナーを解除
+    this.input.off('pointerdown');
+  }
+  
+  destroy() {
+    // リソース解放
+    this.shutdown();
+  }
+
+  // もし既にplaying状態の場合（再接続時など）
+  // Firestoreの操作をFirebaseManagerを通じて行う
+  private checkGameStatus() {
+    const gameId = this.firebaseManager.getGameId();
+    if (gameId) {
+      this.firebaseManager.getGameStatus(gameId)
+        .then((status) => {
+          if (status === 'playing') {
+            this.startGame();
+            // 接続中のテキストを削除（既に存在する場合のみ）
+            const connectingText = this.children.getByName('connectingText');
+            if (connectingText) {
+              connectingText.destroy();
             }
-            break;
-            
-          case 'skill':
-            // スキル使用
-            this.opponent.useSkill();
-            this.soundManager.playSfx('skill_activate');
-            break;
-            
-          case 'ultimate':
-            // アルティメット使用
-            this.opponent.useUltimate();
-            this.soundManager.playSfx('ultimate_activate');
-            break;
-        }
-      }
-    );
-  }
-  
-  shutdown(): void {
-    // シーン終了時に購読を解除
-    if (this.playerStateUnsubscribe) {
-      this.playerStateUnsubscribe();
+          }
+        });
     }
-    
-    if (this.playerActionsUnsubscribe) {
-      this.playerActionsUnsubscribe();
-    }
-    
-    // Firebaseの購読も解除
-    this.firebaseManager.unsubscribeListeners();
   }
 }

@@ -1,64 +1,64 @@
 import Phaser from 'phaser';
 
+/**
+ * モバイル用の仮想ジョイスティッククラス
+ * 移動操作とスキル発動方向指示の2種類のモードをサポート
+ */
 export class VirtualJoystick {
   private scene: Phaser.Scene;
-  private base: Phaser.GameObjects.Arc;
-  private stick: Phaser.GameObjects.Arc;
-  private baseRadius: number = 60;
-  private stickRadius: number = 30;
+  private base: Phaser.GameObjects.Image;
+  private stick: Phaser.GameObjects.Image;
+  private targetLine?: Phaser.GameObjects.Graphics;
+  private targetCircle?: Phaser.GameObjects.Graphics;
   private pointer: Phaser.Input.Pointer | null = null;
-  private vector: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 0);
-  private isSkillJoystick: boolean = false;
-  private targetLine: Phaser.GameObjects.Graphics | null = null;
-  private targetCircle: Phaser.GameObjects.Arc | null = null;
-  private maxDistance: number = 200; // スキルの最大距離
+  private vector: Phaser.Math.Vector2 = new Phaser.Math.Vector2();
+  private isForSkill: boolean;
+  private maxDistance: number = 64;
   
-  constructor(scene: Phaser.Scene, isSkillJoystick: boolean = false, x?: number, y?: number) {
+  constructor(scene: Phaser.Scene, isForSkill: boolean = false) {
     this.scene = scene;
-    this.isSkillJoystick = isSkillJoystick;
+    this.isForSkill = isForSkill;
     
-    // ジョイスティックの位置
-    let posX = x;
-    let posY = y;
+    const cameraWidth = scene.cameras.main.width;
+    const cameraHeight = scene.cameras.main.height;
     
-    if (posX === undefined || posY === undefined) {
-      // デフォルトは画面左下（移動用）か右下（スキル用）
-      if (this.isSkillJoystick) {
-        posX = scene.cameras.main.width - 150;
-        posY = scene.cameras.main.height - 150;
-      } else {
-        posX = 150;
-        posY = scene.cameras.main.height - 150;
-      }
-    }
+    // ジョイスティックの位置を設定（移動用は左下、スキル用は右下）
+    const x = this.isForSkill ? cameraWidth - 100 : 100;
+    const y = cameraHeight - 100;
     
-    // ベース部分（半透明の円）
-    this.base = scene.add.circle(posX, posY, this.baseRadius, 0x888888, 0.5)
-      .setDepth(100)
-      .setScrollFactor(0)
-      .setStrokeStyle(2, this.isSkillJoystick ? 0x00ffff : 0xffffff, 0.8);
-    
-    // スティック部分（内側の円）
-    this.stick = scene.add.circle(posX, posY, this.stickRadius, this.isSkillJoystick ? 0x00ffff : 0xffffff, 0.8)
-      .setDepth(101)
-      .setScrollFactor(0);
-    
-    // スキルジョイスティック用の狙い線と着弾地点表示を初期化
-    if (this.isSkillJoystick) {
-      this.targetLine = scene.add.graphics()
-        .setDepth(90)
-        .setScrollFactor(0);
+    // ジョイスティックのベース（背景）を作成
+    this.base = scene.add.image(x, y, 'joystick-base')
+      .setScrollFactor(0) // カメラに追従しない
+      .setAlpha(0.7)
+      .setDepth(200);
       
-      this.targetCircle = scene.add.circle(posX, posY, 10, 0x00ffff, 0.6)
-        .setDepth(91)
+    // スティック（操作する部分）を作成
+    this.stick = scene.add.image(x, y, 'joystick')
+      .setScrollFactor(0)
+      .setAlpha(0.8)
+      .setDepth(200);
+    
+    // スキル用ジョイスティックの場合は、方向線とターゲットサークルを作成
+    if (this.isForSkill) {
+      // 方向を示す線
+      this.targetLine = scene.add.graphics()
         .setScrollFactor(0)
-        .setVisible(false);
+        .setDepth(190);
+      
+      // ターゲットサークル
+      this.targetCircle = scene.add.graphics()
+        .setScrollFactor(0)
+        .setDepth(190);
     }
     
-    // タッチ入力の設定
-    scene.input.on('pointerdown', this.onPointerDown, this);
-    scene.input.on('pointermove', this.onPointerMove, this);
-    scene.input.on('pointerup', this.onPointerUp, this);
+    // 入力を受け取れるように設定
+    this.bindEvents();
+  }
+  
+  private bindEvents(): void {
+    this.scene.input.on('pointerdown', this.onPointerDown, this);
+    this.scene.input.on('pointermove', this.onPointerMove, this);
+    this.scene.input.on('pointerup', this.onPointerUp, this);
   }
   
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
@@ -67,93 +67,106 @@ export class VirtualJoystick {
       this.base.x, this.base.y
     );
     
-    // ジョイスティック範囲内のみ反応
-    if (distance <= this.baseRadius) {
+    // ベースの近くでタッチした場合のみ反応
+    const activationRadius = this.isForSkill ? 100 : 70;
+    if (distance <= activationRadius) {
       this.pointer = pointer;
-      this.updateStickPosition(pointer);
+      this.updateStickPosition(pointer.x, pointer.y);
       
-      // スキルジョイスティックの場合は狙い線を表示
-      if (this.isSkillJoystick && this.targetLine) {
-        this.updateTargetLine();
+      // スキルジョイスティックの場合はターゲットラインとサークルを表示
+      if (this.isForSkill && this.targetLine && this.targetCircle) {
+        this.updateTargetVisuals();
       }
     }
   }
   
   private onPointerMove(pointer: Phaser.Input.Pointer): void {
     if (this.pointer && this.pointer.id === pointer.id) {
-      this.updateStickPosition(pointer);
+      this.updateStickPosition(pointer.x, pointer.y);
       
-      // スキルジョイスティックの場合は狙い線を更新
-      if (this.isSkillJoystick && this.targetLine) {
-        this.updateTargetLine();
+      // スキルジョイスティックの場合はターゲットラインとサークルを更新
+      if (this.isForSkill && this.targetLine && this.targetCircle) {
+        this.updateTargetVisuals();
       }
     }
   }
   
   private onPointerUp(pointer: Phaser.Input.Pointer): void {
     if (this.pointer && this.pointer.id === pointer.id) {
+      // スティックを元の位置に戻す
+      this.resetStick();
       this.pointer = null;
       
-      // スティックをリセット
-      this.stick.setPosition(this.base.x, this.base.y);
-      this.vector.reset();
-      
-      // スキルジョイスティックの場合は狙い線を非表示
-      if (this.isSkillJoystick) {
-        if (this.targetLine) this.targetLine.clear();
-        if (this.targetCircle) this.targetCircle.setVisible(false);
+      // スキルジョイスティックの場合はターゲットラインとサークルを非表示
+      if (this.isForSkill && this.targetLine && this.targetCircle) {
+        this.targetLine.clear();
+        this.targetCircle.clear();
       }
     }
   }
   
-  private updateStickPosition(pointer: Phaser.Input.Pointer): void {
-    // スティックの位置を計算
-    const dx = pointer.x - this.base.x;
-    const dy = pointer.y - this.base.y;
-    const angle = Math.atan2(dy, dx);
-    const distance = Math.min(this.baseRadius, Math.sqrt(dx * dx + dy * dy));
+  private updateStickPosition(x: number, y: number): void {
+    const dx = x - this.base.x;
+    const dy = y - this.base.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
     
-    // スティックの位置を更新
-    const x = this.base.x + distance * Math.cos(angle);
-    const y = this.base.y + distance * Math.sin(angle);
-    this.stick.setPosition(x, y);
+    // 方向ベクトルを計算
+    if (distance === 0) {
+      this.vector.reset();
+    } else {
+      this.vector.x = dx / distance;
+      this.vector.y = dy / distance;
+    }
     
-    // 移動方向ベクトルを更新
-    this.vector.x = dx / this.baseRadius;
-    this.vector.y = dy / this.baseRadius;
-    
-    // 大きさを1に正規化
-    if (this.vector.length() > 1) {
-      this.vector.normalize();
+    // スティックの位置を更新（最大距離を制限）
+    if (distance <= this.maxDistance) {
+      this.stick.x = x;
+      this.stick.y = y;
+    } else {
+      this.stick.x = this.base.x + (dx / distance) * this.maxDistance;
+      this.stick.y = this.base.y + (dy / distance) * this.maxDistance;
     }
   }
   
-  private updateTargetLine(): void {
-    if (!this.targetLine || !this.targetCircle) return;
+  private resetStick(): void {
+    this.stick.x = this.base.x;
+    this.stick.y = this.base.y;
+    this.vector.reset();
     
-    // ベクトルの方向と大きさに基づいて狙い線を描画
+    // スキルジョイスティックの場合はターゲットラインとサークルをクリア
+    if (this.isForSkill && this.targetLine && this.targetCircle) {
+      this.targetLine.clear();
+      this.targetCircle.clear();
+    }
+  }
+  
+  private updateTargetVisuals(): void {
+    if (!this.targetLine || !this.targetCircle || !this.scene) return;
+    
     this.targetLine.clear();
+    this.targetCircle.clear();
     
-    const startX = this.scene.cameras.main.scrollX + this.base.x;
-    const startY = this.scene.cameras.main.scrollY + this.base.y;
-    
-    // ベクトルの長さに応じてスキルの飛距離を変更（最大距離はmaxDistance）
+    // ベクトルの長さが十分なら方向線とターゲットサークルを描画
     const length = this.vector.length();
-    const distance = length * this.maxDistance;
-    
-    // ワールド座標上での目標地点
-    const targetX = startX + this.vector.x * distance;
-    const targetY = startY + this.vector.y * distance;
-    
-    // 線と円を描画（線の太さと透明度はベクトルの長さに基づく）
-    this.targetLine.lineStyle(2 * length, 0x00ffff, 0.5 * length);
-    this.targetLine.lineBetween(startX, startY, targetX, targetY);
-    
-    // 着弾点の円を表示
-    this.targetCircle.setPosition(targetX, targetY);
-    this.targetCircle.setRadius(10 + 10 * length);
-    this.targetCircle.setVisible(true);
-    this.targetCircle.setAlpha(0.4 * length);
+    if (length > 0.2) {
+      // 方向線の描画（スクリーン座標）
+      const lineLength = 1000; // 画面外まで十分な長さ
+      const lineEndX = this.base.x + this.vector.x * lineLength;
+      const lineEndY = this.base.y + this.vector.y * lineLength;
+      
+      this.targetLine.lineStyle(2, 0x00ffff, 0.5);
+      this.targetLine.beginPath();
+      this.targetLine.moveTo(this.base.x, this.base.y);
+      this.targetLine.lineTo(lineEndX, lineEndY);
+      this.targetLine.strokePath();
+      
+      // ターゲットサークルの描画
+      const targetX = this.base.x + this.vector.x * this.maxDistance;
+      const targetY = this.base.y + this.vector.y * this.maxDistance;
+      
+      this.targetCircle.fillStyle(0x00ffff, 0.5);
+      this.targetCircle.fillCircle(targetX, targetY, 10);
+    }
   }
   
   getVector(): { x: number; y: number } {
@@ -161,7 +174,7 @@ export class VirtualJoystick {
   }
   
   getTargetWorldPosition(): { x: number; y: number } | null {
-    if (!this.isSkillJoystick || !this.vector.length()) return null;
+    if (!this.isForSkill || !this.vector.length()) return null;
     
     const length = this.vector.length();
     const distance = length * this.maxDistance;
@@ -176,7 +189,7 @@ export class VirtualJoystick {
     return this.pointer !== null && this.pointer.id === pointer.id;
   }
   
-  getBase(): Phaser.GameObjects.Arc {
+  getBase(): Phaser.GameObjects.Image {
     return this.base;
   }
 

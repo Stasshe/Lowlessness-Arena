@@ -1,245 +1,239 @@
 import Phaser from 'phaser';
+import { GameConfig } from '../config/GameConfig';
 
+/**
+ * ゲーム内のサウンドを一元管理するマネージャークラス
+ */
 export class SoundManager {
   private scene: Phaser.Scene;
-  private sounds: Map<string, Phaser.Sound.BaseSound>;
-  private musicVolume: number = 0.5;
-  private sfxVolume: number = 0.8;
-  private currentMusic: Phaser.Sound.BaseSound | null = null;
-  private soundsLoaded: boolean = false;
+  private currentMusic?: Phaser.Sound.BaseSound;
+  private sfxVolume: number = 0.5;
+  private musicVolume: number = 0.3;
+  private isMuted: boolean = false;
   
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    this.sounds = new Map();
-    
-    // ローカルストレージから設定を読み込み
-    this.loadSettings();
-    
-    // 音声ファイルのロード
-    this.preloadSounds();
+    this.loadSavedSettings();
   }
   
-  private preloadSounds(): void {
-    // 既存のロードイベントを確認
-    if (this.scene.load.isLoading()) {
-      // すでにロード中なら、完了イベントを監視
-      this.scene.load.once('complete', () => {
-        this.setupSounds();
-      });
-    } else {
-      // BGM
-      this.scene.load.audio('menu_bgm', 'assets/sounds/menu_bgm.mp3');
-      this.scene.load.audio('game_bgm', 'assets/sounds/game_bgm.mp3');
-      this.scene.load.audio('victory_bgm', 'assets/sounds/victory_bgm.mp3');
-      
-      // 効果音
-      this.scene.load.audio('button_click', 'assets/sounds/button_click.mp3');
-      this.scene.load.audio('shoot', 'assets/sounds/shoot.mp3');
-      this.scene.load.audio('hit', 'assets/sounds/hit.mp3');
-      this.scene.load.audio('explosion', 'assets/sounds/explosion.mp3');
-      this.scene.load.audio('skill_activate', 'assets/sounds/skill_activate.mp3');
-      this.scene.load.audio('ultimate_activate', 'assets/sounds/ultimate_activate.mp3');
-      this.scene.load.audio('player_damage', 'assets/sounds/player_damage.mp3');
-      this.scene.load.audio('player_death', 'assets/sounds/player_death.mp3');
-      this.scene.load.audio('countdown', 'assets/sounds/countdown.mp3');
-      
-      // ロード開始
-      this.scene.load.start();
-      
-      this.scene.load.once('complete', () => {
-        this.setupSounds();
-      });
-    }
-  }
-  
-  private setupSounds(): void {
-    // BGMを設定
-    this.addSound('menu_bgm', true);
-    this.addSound('game_bgm', true);
-    this.addSound('victory_bgm', true);
-    
-    // 効果音を設定
-    this.addSound('button_click');
-    this.addSound('shoot');
-    this.addSound('hit');
-    this.addSound('explosion');
-    this.addSound('skill_activate');
-    this.addSound('ultimate_activate');
-    this.addSound('player_damage');
-    this.addSound('player_death');
-    this.addSound('countdown');
-    
-    // 音量設定を適用
-    this.updateVolumes();
-    
-    this.soundsLoaded = true;
-    console.log('サウンド初期化完了');
-  }
-  
-  private addSound(key: string, isMusic: boolean = false): void {
+  /**
+   * 保存された音量設定を読み込む
+   */
+  private loadSavedSettings(): void {
     try {
-      const sound = this.scene.sound.add(key);
-      if (sound) {
-        if (isMusic) {
-          // 音楽はループさせる
-          // @ts-ignore - Phaserサウンドタイプの互換性のため
-          sound.loop = true;
-          
-          // 音量設定
-          this.setSoundVolume(sound, this.musicVolume);
-        } else {
-          // 効果音の音量設定
-          this.setSoundVolume(sound, this.sfxVolume);
-        }
-        
-        this.sounds.set(key, sound);
+      const savedMusicVolume = localStorage.getItem('musicVolume');
+      const savedSfxVolume = localStorage.getItem('sfxVolume');
+      const savedMuted = localStorage.getItem('soundMuted');
+      
+      if (savedMusicVolume !== null) {
+        this.musicVolume = parseFloat(savedMusicVolume);
       }
-    } catch (error) {
-      console.warn(`サウンドの追加に失敗しました: ${key}`, error);
-    }
-  }
-  
-  // 異なる種類のサウンドオブジェクトに対応する汎用メソッド
-  private setSoundVolume(sound: Phaser.Sound.BaseSound, volume: number): void {
-    try {
-      // @ts-ignore - Phaserサウンドタイプの互換性のため
-      if (typeof sound.setVolume === 'function') {
-        // @ts-ignore
-        sound.setVolume(volume);
+      
+      if (savedSfxVolume !== null) {
+        this.sfxVolume = parseFloat(savedSfxVolume);
       }
-      // @ts-ignore - HTML5Audioベースの実装用
-      else if (sound.volume !== undefined) {
-        // @ts-ignore
-        sound.volume = volume;
+      
+      if (savedMuted !== null) {
+        this.isMuted = savedMuted === 'true';
       }
-      // @ts-ignore - WebAudioのデータフローノードを持つ実装用
-      else if (sound._sound && sound._sound.setVolume) {
-        // @ts-ignore
-        sound._sound.setVolume(volume);
-      }
-      // Phaserの内部プロパティを直接設定
-      else {
-        // @ts-ignore - 最終手段
-        sound._volume = volume;
-      }
+      
+      // 読み込んだ設定を反映
+      this.applyVolumeSettings();
     } catch (e) {
-      console.warn(`音量設定に失敗しました: ${e}`);
-    }
-  }
-
-  playMusic(key: string): void {
-    // 現在のBGMを停止
-    if (this.currentMusic) {
-      this.currentMusic.stop();
-    }
-    
-    // 新しいBGMを再生
-    try {
-      const music = this.sounds.get(key);
-      if (music) {
-        music.play();
-        this.currentMusic = music;
-      } else if (this.soundsLoaded) {
-        console.warn(`音楽 "${key}" が見つかりません`);
-      }
-    } catch (e) {
-      console.warn('音楽再生エラー:', e);
+      console.warn('音量設定の読み込みに失敗:', e);
     }
   }
   
-  stopMusic(): void {
-    if (this.currentMusic) {
-      this.currentMusic.stop();
-      this.currentMusic = null;
-    }
-  }
-  
-  playSfx(key: string): void {
-    try {
-      const sfx = this.sounds.get(key);
-      if (sfx) {
-        if (!sfx.isPlaying) {
-          sfx.play();
-        }
-      } else if (this.soundsLoaded) {
-        console.warn(`効果音 "${key}" が見つかりません`);
-        // フォールバックとして、ダミーサウンドを作成して再生
-        const dummySound = this.scene.sound.add(key);
-        if (dummySound) {
-          this.setSoundVolume(dummySound, this.sfxVolume);
-          dummySound.play();
-          this.sounds.set(key, dummySound);
-        }
-      }
-    } catch (e) {
-      console.warn('効果音再生エラー:', e);
-    }
-  }
-  
-  setMusicVolume(volume: number): void {
-    this.musicVolume = Phaser.Math.Clamp(volume, 0, 1);
-    this.updateVolumes();
-    this.saveSettings();
-  }
-  
-  setSfxVolume(volume: number): void {
-    this.sfxVolume = Phaser.Math.Clamp(volume, 0, 1);
-    this.updateVolumes();
-    this.saveSettings();
-  }
-  
-  private updateVolumes(): void {
-    this.sounds.forEach((sound, key) => {
-      try {
-        if (key.includes('_bgm')) {
-          // 音楽の音量を設定
-          this.setSoundVolume(sound, this.musicVolume);
-        } else {
-          // 効果音の音量を設定
-          this.setSoundVolume(sound, this.sfxVolume);
-        }
-      } catch (error) {
-        console.warn(`音量の設定に失敗しました: ${key}`, error);
-      }
-    });
-  }
-  
-  private loadSettings(): void {
-    try {
-      const musicVol = localStorage.getItem('musicVolume');
-      const sfxVol = localStorage.getItem('sfxVolume');
-      
-      if (musicVol) {
-        this.musicVolume = parseFloat(musicVol);
-      }
-      
-      if (sfxVol) {
-        this.sfxVolume = parseFloat(sfxVol);
-      }
-    } catch (e) {
-      console.warn('ローカルストレージにアクセスできません', e);
-    }
-  }
-  
+  /**
+   * 音量設定を保存
+   */
   private saveSettings(): void {
     try {
       localStorage.setItem('musicVolume', this.musicVolume.toString());
       localStorage.setItem('sfxVolume', this.sfxVolume.toString());
+      localStorage.setItem('soundMuted', this.isMuted.toString());
     } catch (e) {
-      console.warn('ローカルストレージへの保存に失敗しました', e);
+      console.warn('音量設定の保存に失敗:', e);
     }
   }
   
+  /**
+   * 音量設定を適用
+   */
+  private applyVolumeSettings(): void {
+    if (!this.scene.sound) return;
+    
+    // ミュート状態を設定
+    this.scene.sound.mute = this.isMuted;
+    
+    // 再生中のBGMがあれば音量を適用
+    if (this.currentMusic) {
+      this.currentMusic.volume = this.musicVolume;
+    }
+  }
+  
+  /**
+   * BGMを再生
+   */
+  playMusic(key: string, loop: boolean = true): void {
+    // サウンド無効の場合は何もしない
+    if (!GameConfig.options.soundEnabled) return;
+    
+    try {
+      // 既に同じ曲が再生中なら何もしない
+      if (this.currentMusic?.key === key && this.currentMusic.isPlaying) {
+        return;
+      }
+      
+      // 既存の音楽を停止
+      if (this.currentMusic?.isPlaying) {
+        this.currentMusic.stop();
+      }
+      
+      // 新しい音楽を再生
+      this.currentMusic = this.scene.sound.add(key);
+      this.currentMusic.play({ 
+        volume: this.musicVolume, 
+        loop 
+      });
+      
+    } catch (e) {
+      console.warn(`BGM ${key} の再生に失敗:`, e);
+    }
+  }
+  
+  /**
+   * 効果音を再生
+   */
+  playSfx(key: string): void {
+    // サウンド無効の場合は何もしない
+    if (!GameConfig.options.soundEnabled) return;
+    
+    try {
+      this.scene.sound.play(key, {
+        volume: this.sfxVolume
+      });
+    } catch (e) {
+      console.warn(`効果音 ${key} の再生に失敗:`, e);
+    }
+  }
+  
+  /**
+   * 音量フェード付きで音楽を再生
+   */
+  fadeMusicIn(key: string, duration: number = 1000): void {
+    try {
+      // 既存の音楽をフェードアウト
+      if (this.currentMusic?.isPlaying) {
+        this.currentMusic.stop();
+      }
+      
+      // 新しい音楽をボリューム0で追加
+      this.currentMusic = this.scene.sound.add(key);
+      this.currentMusic.play({
+        volume: 0,
+        loop: true
+      });
+      
+      // フェードイン
+      this.scene.tweens.add({
+        targets: this.currentMusic,
+        volume: this.musicVolume,
+        duration: duration,
+        ease: 'Linear'
+      });
+    } catch (e) {
+      console.warn(`BGM ${key} のフェードインに失敗:`, e);
+    }
+  }
+  
+  /**
+   * 音楽をフェードアウトして停止
+   */
+  fadeMusicOut(duration: number = 1000): void {
+    if (!this.currentMusic || !this.currentMusic.isPlaying) return;
+    
+    try {
+      // フェードアウト
+      this.scene.tweens.add({
+        targets: this.currentMusic,
+        volume: 0,
+        duration: duration,
+        ease: 'Linear',
+        onComplete: () => {
+          if (this.currentMusic) {
+            this.currentMusic.stop();
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('BGMのフェードアウトに失敗:', e);
+    }
+  }
+  
+  /**
+   * すべてのサウンドを停止
+   */
+  stopAll(): void {
+    try {
+      this.scene.sound.stopAll();
+      this.currentMusic = undefined;
+    } catch (e) {
+      console.warn('サウンド停止に失敗:', e);
+    }
+  }
+  
+  /**
+   * 音楽ボリュームを設定
+   */
+  setMusicVolume(volume: number): void {
+    this.musicVolume = Phaser.Math.Clamp(volume, 0, 1);
+    
+    if (this.currentMusic) {
+      this.currentMusic.volume = this.musicVolume;
+    }
+    
+    this.saveSettings();
+  }
+  
+  /**
+   * 効果音ボリュームを設定
+   */
+  setSfxVolume(volume: number): void {
+    this.sfxVolume = Phaser.Math.Clamp(volume, 0, 1);
+    this.saveSettings();
+  }
+  
+  /**
+   * ミュート状態を切り替え
+   */
+  toggleMute(): boolean {
+    this.isMuted = !this.isMuted;
+    if (this.scene.sound) {
+      this.scene.sound.mute = this.isMuted;
+    }
+    this.saveSettings();
+    return this.isMuted;
+  }
+  
+  /**
+   * 現在のミュート状態を取得
+   */
+  isSoundMuted(): boolean {
+    return this.isMuted;
+  }
+  
+  /**
+   * 現在の音楽ボリュームを取得
+   */
   getMusicVolume(): number {
     return this.musicVolume;
   }
   
+  /**
+   * 現在の効果音ボリュームを取得
+   */
   getSfxVolume(): number {
     return this.sfxVolume;
-  }
-
-  // サウンドが読み込まれたかを確認するメソッド
-  isSoundLoaded(): boolean {
-    return this.soundsLoaded;
   }
 }

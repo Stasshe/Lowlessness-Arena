@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { GameConfig } from '../config/GameConfig';
-import { Weapon } from './Weapon';
+import { Weapon, WeaponType } from './Weapon';
 
 // スキルタイプの列挙
 export enum SkillType {
+  NONE = 'none',
   SHIELD = 'shield',
   DASH = 'dash',
   SCOPE = 'scope',
@@ -31,16 +32,21 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private ultimateCharge: number = 0;
   private maxUltimateCharge: number = 100;
   private moveSpeed: number = GameConfig.CHARACTER_SPEED;
-  private specialAbility: string = 'none';
-  private isInBush: boolean = false;
+  private specialAbility: SkillType = SkillType.NONE;
+  public isInBush: boolean = false;
   private isVisible: boolean = true;
-  private skillType: SkillType = SkillType.SHIELD;
   private skillLastUsed: number = 0;
   private ultimateLastUsed: number = 0;
   private skillCooldown: number = GameConfig.SKILL_COOLDOWN;
   private ultimateCooldown: number = GameConfig.ULTIMATE_COOLDOWN;
   private skillEffect: Phaser.GameObjects.Container | null = null;
   private healthBar: Phaser.GameObjects.Graphics;
+  private isInvincible: boolean = false;
+  private isDashing: boolean = false;
+  private isShielded: boolean = false;
+  private shieldEndTime: number = 0;
+  private shieldReduction: number = 0.3; // 30%ダメージ軽減
+  private _isAlive: boolean = true; // isAliveプロパティを追加
   
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, 'player');
@@ -54,20 +60,35 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setCollideWorldBounds(true);
     
     // 武器の初期化
-    this.weapon = new Weapon(scene, this, 'default');
+    this.weapon = new Weapon(scene, this, WeaponType.DEFAULT);
     
     // ヘルスバーの初期化
     this.healthBar = scene.add.graphics();
     this.updateHealthBar();
   }
   
-  update(): void {
+  update(time: number, delta: number): void {
     // ヘルスバーの位置を更新
     this.updateHealthBar();
     
     // アクティブなエフェクトの更新
     if (this.skillEffect) {
       this.skillEffect.setPosition(this.x, this.y);
+    }
+
+    // シールド効果の終了をチェック
+    if (this.isShielded && time > this.shieldEndTime) {
+      this.removeShield();
+    }
+    
+    // ダッシュ状態の更新
+    if (this.isDashing && this.body instanceof Phaser.Physics.Arcade.Body) {
+      // ダッシュ中は摩擦を低減
+      this.body.setDamping(true);
+      this.body.setDrag(0.8, 0.8);
+    } else if (this.body instanceof Phaser.Physics.Arcade.Body) {
+      this.body.setDamping(true);
+      this.body.setDrag(0.9, 0.9);
     }
   }
   
@@ -231,33 +252,44 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
   
   takeDamage(amount: number): void {
-    this.health = Math.max(0, this.health - amount);
+    if (!this._isAlive || this.isInvincible) return;
     
-    // パーティクルエフェクト
-    this.scene.add.particles(this.x, this.y, 'default', {
-      speed: 100,
-      scale: { start: 0.2, end: 0 },
-      blendMode: 'ADD',
-      tint: 0xff0000,
-      lifespan: 300,
-      quantity: 10
+    // シールド効果がある場合はダメージ軽減
+    if (this.isShielded) {
+      amount *= (1 - this.shieldReduction);
+    }
+    
+    // HPを減らす
+    this.health -= amount;
+    
+    // 被弾した場合、茂みの中にいても姿が見える
+    this.setAlpha(1.0);
+    
+    // 被弾したプレイヤーを一時的に点滅させる
+    this.scene.tweens.add({
+      targets: this,
+      alpha: 0.5,
+      duration: 100,
+      yoyo: true,
+      repeat: 2
     });
     
-    // 体力が0になったら死亡状態に
+    // 被弾エフェクトを表示
+    this.scene.events.emit('hit', this.x, this.y, amount);
+    
+    // 被弾効果音
+    try {
+      this.scene.sound.play('player_hit');
+    } catch (e) {}
+    
+    // HPが0以下になったら死亡
     if (this.health <= 0) {
+      this.health = 0;
       this.die();
     }
     
-    // 茂みにいる場合は一時的に表示
-    if (this.isInBush) {
-      this.temporarilyReveal();
-    }
-    
-    // アルティメットゲージが少し増える
+    // アルティメットゲージを増加（被弾でもゲージは溜まる）
     this.addUltimateCharge(5);
-    
-    // ヘルスバーを更新
-    this.updateHealthBar();
   }
   
   heal(amount: number): void {
@@ -278,30 +310,45 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
   
   die(): void {
+    if (!this._isAlive) return;
+    
+    this._isAlive = false;
     this.currentState = PlayerState.DEAD;
-    this.setVelocity(0, 0);
-    this.setTint(0xff0000);
     
     // 死亡エフェクト
-    this.scene.add.particles(this.x, this.y, 'default', {
-      speed: 200,
-      scale: { start: 0.5, end: 0 },
-      blendMode: 'ADD',
-      tint: 0xff0000,
-      lifespan: 800,
-      quantity: 30
-    });
+    this.scene.events.emit('death', this.x, this.y);
     
-    // トレーニングモードではすぐに復活
+    // 物理ボディを無効化
+    this.body.enable = false;
+    
+    // 透明にする
+    this.setAlpha(0.5);
+    
+    // 死亡効果音
+    try {
+      this.scene.sound.play('player_death');
+    } catch (e) {}
+    
+    // 3秒後に復活
     this.scene.time.delayedCall(3000, () => {
-      this.revive();
+      this.respawn();
     });
   }
   
-  revive(): void {
+  respawn(): void {
+    // 復活処理
     this.health = this.maxHealth;
+    this._isAlive = true;
     this.currentState = PlayerState.IDLE;
-    this.clearTint();
+    this.isInvincible = true;
+    
+    // 物理ボディを再度有効化
+    if (this.body) {
+      this.body.enable = true;
+    }
+    
+    // 通常表示に戻す
+    this.setAlpha(1.0);
     
     // スポーンポイントに戻す
     const map = (this.scene as any).map; // シーンからマップへの参照を取得
@@ -322,6 +369,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     
     // ヘルスバーを更新
     this.updateHealthBar();
+    
+    // 一定時間後に無敵を解除
+    this.scene.time.delayedCall(1500, () => {
+      this.isInvincible = false;
+    });
   }
   
   enterBush(): void {
@@ -355,7 +407,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.currentState = PlayerState.USING_SKILL;
     
     // 特殊能力の種類に応じて異なる効果を発動
-    switch (this.skillType) {
+    switch (this.specialAbility) {
       case SkillType.SHIELD:
         // シールド効果（一時的にダメージ軽減）
         this.createShieldEffect();
@@ -396,30 +448,20 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
   
   private createShieldEffect(): void {
-    // 既存のシールドエフェクトがあれば削除
-    if (this.skillEffect) {
-      this.skillEffect.destroy();
-    }
+    this.isShielded = true;
+    this.shieldEndTime = this.scene.time.now + 3000; // 3秒間持続
     
-    // シールドエフェクトを作成
-    const shield = this.scene.add.circle(0, 0, GameConfig.CHARACTER_RADIUS * 1.5, 0x00aaff, 0.3);
-    shield.setStrokeStyle(2, 0x00ffff, 1);
+    // シールドエフェクト
+    const skillEffect = this.scene.events.emit('skill', SkillType.SHIELD, this.x, this.y);
     
-    // コンテナに格納してプレイヤーに追従させる
-    this.skillEffect = this.scene.add.container(this.x, this.y, [shield]);
-    
-    // シールドの効果時間
-    this.scene.time.delayedCall(2000, () => {
-      if (this.skillEffect) {
-        this.skillEffect.destroy();
-        this.skillEffect = null;
-      }
-    });
-    
-    // 効果音
+    // シールド効果音
     try {
-      this.scene.sound.play('skill_activate');
+      this.scene.sound.play('shield_activate');
     } catch (e) {}
+  }
+  
+  private removeShield(): void {
+    this.isShielded = false;
   }
   
   private performDash(targetX: number, targetY: number): void {
@@ -742,7 +784,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
   
   setSpecialAbility(ability: SkillType): void {
-    this.skillType = ability;
+    this.specialAbility = ability;
   }
   
   getWeapon(): Weapon {
@@ -756,6 +798,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.setCircle(GameConfig.CHARACTER_RADIUS);
       this.setCollideWorldBounds(true);
     }
+  }
+
+  // スキルタイプを取得するゲッターメソッド
+  getSkillType(): SkillType {
+    return this.specialAbility;
+  }
+  
+  // 武器タイプを取得するゲッターメソッド
+  getWeaponType(): string {
+    return this.weapon.getType();
   }
 
   // リソース開放

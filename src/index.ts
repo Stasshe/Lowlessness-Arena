@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
+import { GameConfig } from './config/GameConfig';
+import { LoadingScene } from './scenes/LoadingScene';
 import { MainMenuScene } from './scenes/MainMenuScene';
 import { TrainingScene } from './scenes/TrainingScene';
-import { OnlineGameScene } from './scenes/OnlineGameScene';
 import { LobbyScene } from './scenes/LobbyScene';
-import { GameConfig } from './config/GameConfig';
+import { OnlineGameScene } from './scenes/OnlineGameScene';
 
 // Windowインターフェースを拡張してunlockAudio関数を追加
 declare global {
@@ -29,22 +30,48 @@ if (typeof window === 'undefined') {
   }
 }
 
-window.addEventListener('load', () => {
-  // アセットディレクトリの説明
-  console.log('Lowlessness Arena を起動します');
-  console.log('アセット準備のヒント:');
-  console.log('必要なディレクトリ構造: /workspaces/Lowlessness-arena/src/assets/');
-  
-  // Nodeの機能は開発環境でのみ使用
-  if (typeof process !== 'undefined' && fs && path) {
-    try {
-      const assetsPath = path.join(__dirname, 'assets');
-      if (!fs.existsSync(assetsPath)) {
-        console.warn('警告: assetsディレクトリが見つかりません');
-      }
-    } catch (error) {
-      // エラーを抑制
+// Phaserの設定
+const config: Phaser.Types.Core.GameConfig = {
+  type: Phaser.AUTO,
+  width: GameConfig.GAME_WIDTH,
+  height: GameConfig.GAME_HEIGHT,
+  parent: 'game-container',
+  backgroundColor: '#222034',
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH
+  },
+  physics: {
+    default: 'arcade',
+    arcade: {
+      gravity: { x: 0, y: 0 },
+      debug: GameConfig.options.debug
     }
+  },
+  render: {
+    pixelArt: GameConfig.options.pixelArt,
+    antialias: false
+  },
+  scene: [
+    LoadingScene,
+    MainMenuScene,
+    TrainingScene,
+    LobbyScene,
+    OnlineGameScene
+  ]
+};
+
+// ゲームの初期化
+window.addEventListener('load', () => {
+  // アセットのセットアップを実行
+  setupAssets();
+  
+  // ゲームインスタンスを作成
+  const game = new Phaser.Game(config);
+  
+  // モバイルデバイスの場合、フルスクリーンボタンを表示
+  if (GameConfig.isMobileDevice()) {
+    createFullscreenButton(game);
   }
   
   // サウンドの初期化 - モバイルブラウザ対応
@@ -71,34 +98,48 @@ window.addEventListener('load', () => {
   // クリックやタップでサウンドをアンロック
   document.addEventListener('click', unlockAudio, false);
   document.addEventListener('touchstart', unlockAudio, false);
-  
-  // Phaserゲーム設定
-  const config: Phaser.Types.Core.GameConfig = {
-    type: Phaser.AUTO,
-    width: GameConfig.WIDTH,
-    height: GameConfig.HEIGHT,
-    parent: 'game-container',
-    physics: {
-      default: 'arcade',
-      arcade: {
-        gravity: { y: 0 },
-        debug: GameConfig.DEBUG
-      } as Phaser.Types.Physics.Arcade.ArcadeWorldConfig
-    },
-    scene: [MainMenuScene, TrainingScene, LobbyScene, OnlineGameScene],
-    scale: {
-      mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH
-    },
-    input: {
-      activePointers: 2,
-      keyboard: true
-    },
-    audio: {
-      disableWebAudio: false,
-      noAudio: false
-    }
-  };
+});
 
-  new Phaser.Game(config);
+// アセットセットアップ関数
+async function setupAssets() {
+  try {
+    // Node.js環境の場合はセットアップスクリプトを実行
+    if (typeof require !== 'undefined') {
+      await import('./setup-assets');
+    }
+  } catch (e) {
+    console.warn('アセットセットアップをスキップしました:', e);
+  }
+}
+
+// フルスクリーンボタンの作成
+function createFullscreenButton(game: Phaser.Game) {
+  const button = document.createElement('button');
+  button.textContent = '📺';
+  button.style.position = 'absolute';
+  button.style.bottom = '10px';
+  button.style.right = '10px';
+  button.style.zIndex = '1000';
+  button.style.fontSize = '24px';
+  button.style.padding = '8px 12px';
+  button.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+  button.style.color = 'white';
+  button.style.border = 'none';
+  button.style.borderRadius = '4px';
+  button.style.cursor = 'pointer';
+  
+  button.addEventListener('click', () => {
+    if (game.scale.isFullscreen) {
+      game.scale.stopFullscreen();
+    } else {
+      game.scale.startFullscreen();
+    }
+  });
+  
+  document.getElementById('game-container')?.appendChild(button);
+}
+
+// エラーハンドリング
+window.addEventListener('error', (e) => {
+  console.error('ゲームエラー:', e.error);
 });

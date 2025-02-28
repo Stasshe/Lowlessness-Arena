@@ -1,14 +1,15 @@
 import Phaser from 'phaser';
 import { Player, SkillType } from '../objects/Player';
-import { WeaponType } from '../objects/Weapon';
+import { WeaponType } from '../utils/WeaponTypes';
 import { CharacterData } from '../utils/CharacterData';
 
 export enum CharacterType {
   DEFAULT = 'DEFAULT',
-  TANK = 'TANK',
-  SPEEDER = 'SPEEDER',
+  KNIGHT = 'KNIGHT',
+  TANKER = 'TANKER',
+  ARCHER = 'ARCHER',
   SNIPER = 'SNIPER',
-  THROWER = 'THROWER',
+  BOMBER = 'BOMBER',
   HEALER = 'HEALER'
 }
 

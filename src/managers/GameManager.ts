@@ -8,7 +8,8 @@ import { InputController } from '../controllers/InputController';
 import { UI } from '../ui/UI';
 import { SkillUI } from '../ui/SkillUI';
 import { VirtualJoystick } from '../utils/VirtualJoystick';
-import { WeaponAiming, WeaponType } from '../utils/WeaponAiming';
+import { WeaponAiming } from '../utils/WeaponAiming';
+import { WeaponType } from '../utils/WeaponTypes';
 import { ProjectileCalculator } from '../utils/ProjectileCalculator';
 // WeaponTypeは実際に使われている場合はインポートを残す、使われていない場合は削除
 

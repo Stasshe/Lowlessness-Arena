@@ -1,61 +1,71 @@
 {
-  "DEFAULT": {
-    "name": "バランス型",
-    "description": "バランスの取れた性能",
+  "KNIGHT": {
+    "name": "ユーグ",
+    "description": "バランスの取れた騎士",
     "color": "0xffffff",
     "health": 100,
-    "speed": 220,
-    "weapon": "DEFAULT",
-    "skill": "SHIELD",
-    "skillDescription": "シールド - 2秒間ダメージを20%軽減",
-    "ultimateDescription": "エナジーブラスト - 中範囲の爆発攻撃"
+    "speed": 100,
+    "weapon": "PISTOL",
+    "skill": "GATLING",
+    "skillName": "バレット・ストーム",
+    "skillDescription": "ガトリング乱射 - 範囲攻撃、リーチ短め",
+    "ultimateName": "フォートレス・ウォール",
+    "ultimateDescription": "バリケード：周囲に壁を生成"
   },
-  "TANK": {
-    "name": "タンク",
+  "TANKER": {
+    "name": "ガウェイン",
     "description": "HPが高いが移動速度が遅い",
     "color": "0xff0000",
     "health": 150,
-    "speed": 150,
-    "weapon": "SHOTGUN",
-    "skill": "SHIELD",
-    "skillDescription": "シールド - 3秒間ダメージを30%軽減",
-    "ultimateDescription": "バリケード - 周囲に壁を生成"
+    "speed": 75,
+    "weapon": "MELEE",
+    "skill": "DASH_SHIELD",
+    "skillName": "チャージ・アサルト",
+    "skillDescription": "前方にダッシュで突っ込む（ダメージ50％減）",
+    "ultimateName": "ヴァンガード・シールド",
+    "ultimateDescription": "味方全員に4秒間継続する無敵シールドを配布"
   },
-  "SPEEDER": {
-    "name": "スピーダー",
-    "description": "素早いが耐久力が低い",
+  "ARCHER": {
+    "name": "ランセル",
+    "description": "遠距離から矢を放つアーチャー",
     "color": "0x00ff00",
-    "health": 80,
-    "speed": 300,
-    "weapon": "MACHINEGUN",
-    "skill": "DASH",
-    "skillDescription": "ダッシュ - 指定方向に素早く移動",
-    "ultimateDescription": "高速連射 - 5秒間発射速度が3倍に"
+    "health": 75,
+    "speed": 100,
+    "weapon": "BOW",
+    "skill": "TRIPLE_ARROW",
+    "skillName": "トリプル・シャワー",
+    "skillDescription": "放物線を描く3本の矢を一度に放つ",
+    "ultimateName": "レイン・オブ・アローズ",
+    "ultimateDescription": "次のスキル使用で10本の矢を放つ"
   },
   "SNIPER": {
-    "name": "スナイパー",
-    "description": "長距離攻撃が得意",
+    "name": "ベアトリス",
+    "description": "長距離攻撃が得意なスナイパー",
     "color": "0x0000ff",
-    "health": 90,
-    "speed": 200,
+    "health": 80,
+    "speed": 90,
     "weapon": "SNIPER",
-    "skill": "SCOPE",
-    "skillDescription": "スコープ - 射程と精度が向上",
-    "ultimateDescription": "ヘッドショット - 全方位に貫通弾を発射"
+    "skill": "PIERCE_SHOT",
+    "skillName": "ピアス・ストライク",
+    "skillDescription": "壁を貫通するスナイパー銃",
+    "ultimateName": "ラピッド・ファイア",
+    "ultimateDescription": "5秒間連続射撃"
   },
-  "THROWER": {
-    "name": "爆弾魔",
-    "description": "範囲攻撃が得意",
+  "BOMBER": {
+    "name": "マルグリット",
+    "description": "爆弾攻撃が得意な爆弾魔",
     "color": "0xff00ff",
-    "health": 110,
-    "speed": 180,
-    "weapon": "THROWER",
+    "health": 100,
+    "speed": 90,
+    "weapon": "SLING",
     "skill": "BOMB",
-    "skillDescription": "爆弾投げ - 爆発する弾を投げる",
-    "ultimateDescription": "爆破 - 広範囲に大爆発を起こす"
+    "skillName": "ボム・スプレイ",
+    "skillDescription": "爆弾を放物線を描いて投げる",
+    "ultimateName": "デトネーション・ブレイズ",
+    "ultimateDescription": "中範囲の爆発攻撃"
   },
   "HEALER": {
-    "name": "ヒーラー",
+    "name": "エリザベス",
     "description": "味方と自身を回復できる",
     "color": "0x00ffaa",
     "health": 100,

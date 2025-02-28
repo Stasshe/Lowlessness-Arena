@@ -10,7 +10,8 @@ import { FirebaseManager } from '../firebase/FirebaseManager';
 import { GameEffects } from '../utils/GameEffects';
 import { Bullet } from '../objects/Bullet';
 import { ProjectileCalculator } from '../utils/ProjectileCalculator';
-import { WeaponAiming, WeaponType } from '../utils/WeaponAiming';
+import { WeaponAiming } from '../utils/WeaponAiming';
+import { WeaponType } from '../utils/WeaponTypes';
 
 export class OnlineGameScene extends Phaser.Scene {
   private player!: Player;

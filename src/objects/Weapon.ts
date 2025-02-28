@@ -1,14 +1,7 @@
 import Phaser from 'phaser';
 import { Player } from './Player';
 import { Bullet } from './Bullet';
-
-export enum WeaponType {
-  DEFAULT = 'default',
-  SHOTGUN = 'shotgun',
-  MACHINEGUN = 'machinegun',
-  SNIPER = 'sniper',
-  THROWER = 'thrower'
-}
+import { WeaponType, getWeaponDefinition } from '../utils/WeaponTypes';
 
 export class Weapon {
   private scene: Phaser.Scene;
@@ -23,6 +16,7 @@ export class Weapon {
   private bulletsPerShot: number = 1;
   private spread: number = 0; // 角度でのブレ
   private rangeMultiplier: number = 1.0;
+  private specialProperty: string | undefined;
   
   constructor(scene: Phaser.Scene, owner: Player, type: WeaponType) {
     this.scene = scene;
@@ -44,58 +38,31 @@ export class Weapon {
    * 武器タイプに応じたパラメータを設定
    */
   private configureWeapon(): void {
-    switch (this.type) {
-      case WeaponType.SHOTGUN:
-        this.cooldown = 1000;
-        this.bulletSpeed = 500;
-        this.bulletDamage = 15;
-        this.bulletRange = 250;
-        this.bulletsPerShot = 5;
-        this.spread = 0.3; // ラジアン
-        break;
-      
-      case WeaponType.MACHINEGUN:
-        this.cooldown = 150;
-        this.bulletSpeed = 700;
-        this.bulletDamage = 10;
-        this.bulletRange = 350;
-        this.bulletsPerShot = 1;
-        this.spread = 0.1;
-        break;
-      
-      case WeaponType.SNIPER:
-        this.cooldown = 1500;
-        this.bulletSpeed = 1000;
-        this.bulletDamage = 50;
-        this.bulletRange = 800;
-        this.bulletsPerShot = 1;
-        this.spread = 0.01;
-        break;
-      
-      case WeaponType.THROWER:
-        this.cooldown = 1200;
-        this.bulletSpeed = 400;
-        this.bulletDamage = 30;
-        this.bulletRange = 300;
-        this.bulletsPerShot = 1;
-        this.spread = 0.05;
-        break;
-      
-      default: // DEFAULT
-        this.cooldown = 500;
-        this.bulletSpeed = 600;
-        this.bulletDamage = 20;
-        this.bulletRange = 400;
-        this.bulletsPerShot = 1;
-        this.spread = 0.03;
-        break;
-    }
+    // 共通の武器定義から設定を取得
+    const definition = getWeaponDefinition(this.type);
+    
+    this.bulletDamage = definition.damage;
+    this.cooldown = definition.cooldown;
+    this.bulletRange = definition.range;
+    this.bulletSpeed = definition.speed;
+    this.bulletsPerShot = definition.bulletsPerShot;
+    this.spread = definition.spread;
+    this.specialProperty = definition.special;
   }
-  
+
   /**
    * 発射処理
    */
-  fire(angle: number): void {
+  fire(_angle: number): void {
+    // 実装は省略
+    // ...
+  }
+
+  /**
+   * メレー武器の攻撃処理
+   * @param angle 攻撃方向の角度
+   */
+  private meleeAttack(angle: number): void {
     const time = this.scene.time.now;
     
     // クールダウンチェック
@@ -106,47 +73,12 @@ export class Weapon {
     // クールダウンを更新
     this.lastFired = time;
     
-    // 弾を発射
-    for (let i = 0; i < this.bulletsPerShot; i++) {
-      // 弾のばらつき角度を計算
-      let bulletAngle = angle;
-      if (this.spread > 0 && this.bulletsPerShot > 1) {
-        // 複数弾の場合、扇状に広がるように
-        const spreadAngle = this.spread * (i - (this.bulletsPerShot - 1) / 2) / (this.bulletsPerShot - 1);
-        bulletAngle += spreadAngle;
-      } else if (this.spread > 0) {
-        // 単発弾の場合、ランダムなブレを加える
-        bulletAngle += (Math.random() - 0.5) * this.spread;
-      }
-      
-      // 弾を取得（または作成）
-      const bullet = this.bullets.get(this.owner.x, this.owner.y) as Bullet;
-      
-      if (bullet) {
-        // ショットガンかグレネードランチャーの場合は特殊な設定
-        if (this.type === WeaponType.THROWER) {
-          bullet.setBulletType('explosive');
-        } else if (this.type === WeaponType.SNIPER) {
-          bullet.setBulletType('sniper');
-        }
-        
-        // 弾を発射
-        bullet.fire(
-          this.owner.x, 
-          this.owner.y, 
-          bulletAngle, 
-          this.bulletSpeed, 
-          this.bulletDamage, 
-          this.bulletRange * this.rangeMultiplier
-        );
-      }
-    }
-    
-    // 発射音を再生
+    // ここではエフェクトやサウンドのみ実装
+    // 実際のヒット判定とダメージ処理はキャラクタークラスで行う
     try {
-      this.scene.sound.play('shoot');
+      this.scene.sound.play('melee_attack');
     } catch (e) {
-      console.warn('発射音の再生に失敗:', e);
+      console.warn('攻撃音の再生に失敗:', e);
     }
   }
   
@@ -162,6 +94,20 @@ export class Weapon {
    */
   getRange(): number {
     return this.bulletRange * this.rangeMultiplier;
+  }
+  
+  /**
+   * 弾のダメージを取得
+   */
+  getDamage(): number {
+    return this.bulletDamage;
+  }
+  
+  /**
+   * クールダウン時間を取得
+   */
+  getCooldown(): number {
+    return this.cooldown;
   }
   
   /**

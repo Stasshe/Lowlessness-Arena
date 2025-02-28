@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GameConfig } from '../config/GameConfig';
-import { Weapon, WeaponType } from './Weapon';
+import { Weapon } from './Weapon';
+import { WeaponType } from '../utils/WeaponTypes';
 import { CharacterType } from '../characters/CharacterFactory'; // CharacterTypeをインポート
 
 // スキルタイプの列挙
@@ -11,7 +12,11 @@ export enum SkillType {
   SCOPE = 'scope',
   HEAL = 'heal',
   BOMB = 'bomb',
-  MINEFIELD = 'minefield'
+  MINEFIELD = 'minefield',
+  GATLING = 'gatling',
+  DASH_SHIELD = 'dash_shield',
+  TRIPLE_ARROW = 'triple_arrow',
+  PIERCE_SHOT = 'pierce_shot'
 }
 
 export enum PlayerState {
@@ -841,5 +846,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     
     super.destroy();
+  }
+
+  setInvincible(value: boolean): void {
+    this.isInvincible = value;
   }
 }

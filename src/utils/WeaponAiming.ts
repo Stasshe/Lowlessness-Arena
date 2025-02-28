@@ -1,15 +1,6 @@
 import Phaser from 'phaser';
 import { ProjectileCalculator } from './ProjectileCalculator';
-
-// 武器タイプの列挙型
-export enum WeaponType {
-  DEFAULT = 'DEFAULT',
-  SHOTGUN = 'SHOTGUN',
-  MACHINEGUN = 'MACHINEGUN',
-  SNIPER = 'SNIPER',
-  THROWER = 'THROWER',
-  BOMB = 'BOMB'
-}
+import { WeaponType } from './WeaponTypes';
 
 // 照準表示のスタイル設定
 export interface AimingConfig {

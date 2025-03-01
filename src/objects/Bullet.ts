@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 /**
  * 弾の種類を表す型
  */
-export type BulletType = 'normal' | 'explosive' | 'sniper' | 'parabolic';
+export type BulletType = 'normal' | 'explosive' | 'sniper' | 'parabolic' | 'bounce';
 
 /**
  * 武器の弾を表すクラス
@@ -41,13 +41,33 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
   
   /**
    * 弾を発射する
+   * @param x 発射位置X
+   * @param y 発射位置Y
+   * @param angle 発射角度
+   * @param speed 発射速度
+   * @param damage ダメージ量
+   * @param maxDistance 最大飛距離
+   * @param bulletType 弾の種類（オプション）
+   * @param affectedByGravity 重力の影響を受けるか（オプション）
    */
-  fire(x: number, y: number, angle: number, speed: number, damage: number, maxDistance: number): void {
+  fire(
+    x: number, 
+    y: number, 
+    angle: number, 
+    speed: number, 
+    damage: number, 
+    maxDistance: number,
+    bulletType: BulletType = 'normal',
+    affectedByGravity: boolean = false
+  ): void {
     this.setActive(true);
     this.setVisible(true);
     
+    // 弾の種類を設定
+    this.bulletType = bulletType;
+    
     // 放物線弾の場合は別の設定
-    if (this.bulletType === 'parabolic') { // bulletTypeに修正
+    if (this.bulletType === 'parabolic') {
       this.fireParabolic(x, y, angle, speed, damage, maxDistance);
       return;
     }
@@ -61,15 +81,7 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     this.initialY = y;
     
     // 弾の外観設定
-    if (this.bulletType === 'normal') { // bulletTypeに修正
-      this.setScale(0.5, 0.3);
-    } else if (this.bulletType === 'explosive') { // bulletTypeに修正
-      this.setScale(0.8);
-      this.setTint(0xff6600);
-    } else if (this.bulletType === 'sniper') { // bulletTypeに修正
-      this.setScale(0.7, 0.2);
-      this.setTint(0xff0000);
-    }
+    this.setupBulletAppearance();
     
     // 物理パラメータを設定
     this.bulletSpeed = speed;
@@ -80,6 +92,14 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     const vx = Math.cos(angle) * speed;
     const vy = Math.sin(angle) * speed;
     this.setVelocity(vx, vy);
+    
+    // 重力の影響を設定
+    if (this.body && affectedByGravity) {
+      (this.body as Phaser.Physics.Arcade.Body).setGravityY(300);
+    }
+    
+    // 弾ごとの特殊動作
+    this.setupSpecialBehavior();
   }
   
   /**
@@ -257,6 +277,14 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
       this.scene.sound.play('explosion');
     } catch (e) {}
     
+    // 爆発範囲を表示（デバッグ用）
+    if (this.scene.game.config.physics.arcade?.debug) {
+      const explosionArea = this.scene.add.circle(
+        this.x, this.y, this.explosionRadius, 0xff0000, 0.3
+      );
+      this.scene.time.delayedCall(300, () => explosionArea.destroy());
+    }
+    
     // 弾は消滅
     this.deactivate();
   }
@@ -356,6 +384,13 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
   }
   
   /**
+   * 所有者を設定
+   */
+  setOwner(owner: any): void {
+    this._owner = owner;
+  }
+  
+  /**
    * 爆発情報を取得
    */
   getExplosiveInfo(): { isExplosive: boolean, radius: number } {
@@ -370,5 +405,55 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
    */
   isPenetrating(): boolean {
     return this.penetration;
+  }
+
+  /**
+   * 弾の外観を設定
+   */
+  private setupBulletAppearance(): void {
+    switch (this.bulletType) {
+      case 'normal':
+        this.setScale(0.5, 0.3);
+        break;
+      case 'explosive':
+        this.setScale(0.8);
+        this.setTint(0xff6600);
+        break;
+      case 'sniper':
+        this.setScale(0.7, 0.2);
+        this.setTint(0xff0000);
+        break;
+      case 'bounce':
+        this.setScale(0.4);
+        this.setTint(0xffaa00);
+        break;
+      default:
+        this.setScale(0.5);
+    }
+  }
+  
+  /**
+   * 弾の特殊動作を設定
+   */
+  private setupSpecialBehavior(): void {
+    // 弾のタイプに応じた特殊な動作
+    if (this.body) {
+      const body = this.body as Phaser.Physics.Arcade.Body;
+      
+      switch (this.bulletType) {
+        case 'bounce':
+          // バウンドする弾
+          body.setBounce(0.6);
+          break;
+        case 'sniper':
+          // 貫通弾
+          this.penetration = true;
+          break;
+        case 'explosive':
+          // 爆発する弾
+          this.setExplosive(true, 40);
+          break;
+      }
+    }
   }
 }

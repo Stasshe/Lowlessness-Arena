@@ -1080,17 +1080,26 @@ export class TrainingScene extends Phaser.Scene {
                 const bullet = bulletObj as Bullet;
                 const enemyPlayer = enemy as Player;
                 
-                const damage = bullet.getDamage();
-                enemyPlayer.takeDamage(damage);
-                bullet.onHit(enemy);
-                
-                this.gameManager.playHitSound();
+                // 弾の所有者とターゲットが同じでない場合のみダメージ処理
+                if (bullet.owner !== enemyPlayer) {
+                  const damage = bullet.getDamage();
+                  enemyPlayer.takeDamage(damage);
+                  bullet.onHit(enemy);
+                  
+                  this.gameManager.playHitSound();
+                }
               }
             } catch (e) {
               console.warn('ボットダメージ処理エラー:', e);
             }
           },
-          undefined,
+          // 衝突判定前のコールバック - 弾の所有者とターゲットが同じでない場合のみ処理
+          (bulletObj, enemy) => {
+            if (bulletObj instanceof Bullet && enemy instanceof Player) {
+              return bulletObj.owner !== enemy;
+            }
+            return true;
+          },
           this
         );
         
@@ -1107,17 +1116,26 @@ export class TrainingScene extends Phaser.Scene {
                     playerObj instanceof Phaser.Physics.Arcade.Sprite) {
                   const bullet = bulletObj as Bullet;
                   
-                  const damage = bullet.getDamage();
-                  this.gameManager.getPlayer().takeDamage(damage);
-                  bullet.onHit(playerObj);
-                  
-                  this.gameManager.playDamageSound();
+                  // 弾の所有者とターゲットが同じでない場合のみダメージ処理
+                  if (bullet.owner !== playerObj) {
+                    const damage = bullet.getDamage();
+                    this.gameManager.getPlayer().takeDamage(damage);
+                    bullet.onHit(playerObj);
+                    
+                    this.gameManager.playDamageSound();
+                  }
                 }
               } catch (e) {
                 console.warn('プレイヤーダメージ処理エラー:', e);
               }
             },
-            undefined,
+            // 衝突判定前のコールバック - 弾の所有者とターゲットが同じでない場合のみ処理
+            (bulletObj, playerObj) => {
+              if (bulletObj instanceof Bullet && playerObj instanceof Player) {
+                return bulletObj.owner !== playerObj;
+              }
+              return true;
+            },
             this
           );
         }

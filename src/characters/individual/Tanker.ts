@@ -4,10 +4,8 @@ import { Player, SkillType } from '../../objects/Player';
 import { WeaponType } from '../../utils/WeaponTypes';
 import { GameConfig } from '../../config/GameConfig';
 
-
-
 /**
- * ガウェイン（タンカー）のキャラクタークラス
+ * ガーディアン（タンカー）のキャラクタークラス
  */
 export class Tanker extends BaseCharacter {
   private shieldActive: boolean = false;
@@ -18,36 +16,36 @@ export class Tanker extends BaseCharacter {
   }
   
   getName(): string {
-    return 'ガウェイン';
+    return 'ガーディアン';
   }
   
   getSkillName(): string {
-    return 'チャージ・アサルト';
+    return 'バリアシールド';
   }
   
   getUltimateName(): string {
-    return 'ヴァンガード・シールド';
+    return '鉄壁の守り';
   }
   
   getSkillDescription(): string {
-    return '前方にダッシュで突っ込む（ダメージ50％減）';
+    return '一定時間、受けるダメージを軽減する';
   }
   
   getUltimateDescription(): string {
-    return '味方全員に4秒間継続する無敵シールドを配布';
+    return '無敵状態になり、周囲の敵にノックバック効果を与える';
   }
   
   getWeaponType(): WeaponType {
-    return WeaponType.MELEE;
+    return WeaponType.SHOTGUN;
   }
   
   getSkillType(): SkillType {
-    return SkillType.DASH_SHIELD;
+    return SkillType.SHIELD;
   }
   
   initializeStats(): void {
     this.player.setMaxHealth(150);
-    this.player.setSpeed(75);
+    this.player.setSpeed(160);
     this.player.setWeapon(this.getWeaponType());
     this.player.setSpecialAbility(this.getSkillType());
     this.player.setTint(0xff0000);
@@ -130,89 +128,64 @@ export class Tanker extends BaseCharacter {
     return true; // 通常の攻撃処理をスキップ
   }
   
-  useSkill(targetX: number, targetY: number): void {
-    // ダッシュシールド: 前方にダッシュ(ダメージ軽減付き)
+  useSkill(_targetX: number, _targetY: number): void {
+    // バリアシールド: ダメージ軽減効果
     
-    // ダッシュの方向ベクトルを計算
-    const dx = targetX - this.player.x;
-    const dy = targetY - this.player.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    // シールドエフェクト
+    const shield = this.scene.add.circle(this.player.x, this.player.y, 45, 0x00aaff, 0.3)
+      .setStrokeStyle(3, 0x00ffff, 1);
     
-    // 方向を正規化
-    const nx = dx / distance;
-    const ny = dy / distance;
-    
-    // ダッシュの距離を設定(通常ダッシュより長め)
-    const dashDistance = Math.min(distance, 300);
-    
-    // ダッシュ先の座標を計算
-    const dashX = this.player.x + nx * dashDistance;
-    const dashY = this.player.y + ny * dashDistance;
-    
-    // シールドエフェクト付きでダッシュ中
-    this.shieldActive = true;
-    
-    const shield = this.scene.add.circle(this.player.x, this.player.y, GameConfig.CHARACTER_RADIUS * 1.5, 0xff0000, 0.3);
-    shield.setStrokeStyle(2, 0xffaaaa, 1);
-    
-    // ダッシュ中の軌跡エフェクト
-    const trail = this.scene.add.particles(this.player.x, this.player.y, 'default', {
-      speed: 0,
-      scale: { start: 0.5, end: 0 },
-      blendMode: 'ADD',
-      tint: 0xff5555,
-      lifespan: 300,
-      quantity: 2,
-      frequency: 10
+    // パルス効果
+    this.scene.tweens.add({
+      targets: shield,
+      scale: { from: 0, to: 1 },
+      alpha: { from: 0.8, to: 0.3 },
+      duration: 500,
+      ease: 'Back.easeOut'
     });
     
-    // Tweenでダッシュ移動
+    // シールドの輝きエフェクト
+    const highlight = this.scene.add.circle(this.player.x, this.player.y, 50, 0x00ffff, 0)
+      .setStrokeStyle(1, 0x00ffff, 0.5);
+    
+    // 輝きを点滅
     this.scene.tweens.add({
-      targets: this.player,
-      x: dashX,
-      y: dashY,
-      duration: 300,
-      ease: 'Power2',
-      onUpdate: () => {
-        // 移動中の軌跡とシールドの位置を更新
-        trail.setPosition(this.player.x, this.player.y);
-        shield.setPosition(this.player.x, this.player.y);
-        
-        // 移動中に敵にぶつかるとダメージを与える
-        const enemies = (this.scene as any).enemyBots;
-        if (enemies) {
-          enemies.forEach((enemy: any) => {
-            if (enemy && enemy.bot) {
-              const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.bot.x, enemy.bot.y);
-              if (dist < GameConfig.CHARACTER_RADIUS * 2) {
-                // ぶつかった敵を後方に吹き飛ばす
-                const knockbackAngle = Math.atan2(enemy.bot.y - this.player.y, enemy.bot.x - this.player.x);
-                const knockbackForce = 300;
-                enemy.bot.setVelocity(
-                  Math.cos(knockbackAngle) * knockbackForce,
-                  Math.sin(knockbackAngle) * knockbackForce
-                );
-                enemy.bot.takeDamage(20);
-              }
-            }
-          });
+      targets: highlight,
+      alpha: { from: 0.8, to: 0 },
+      scale: { from: 0.8, to: 1.2 },
+      duration: 1000,
+      repeat: 2
+    });
+    
+    // プレイヤーに追従
+    this.scene.time.addEvent({
+      delay: 30,
+      callback: () => {
+        if (shield && this.player) {
+          shield.setPosition(this.player.x, this.player.y);
+          highlight.setPosition(this.player.x, this.player.y);
         }
       },
-      onComplete: () => {
-        // 移動完了時
-        trail.destroy();
-        shield.destroy();
-        
-        // 1秒後にシールド効果を解除
-        this.scene.time.delayedCall(1000, () => {
-          this.shieldActive = false;
-        });
-      }
+      repeat: 100
+    });
+    
+    // 効果持続時間（3秒）
+    this.scene.time.delayedCall(3000, () => {
+      // シールドを消す
+      this.scene.tweens.add({
+        targets: [shield, highlight],
+        alpha: 0,
+        duration: 500,
+        onComplete: () => {
+          shield.destroy();
+          highlight.destroy();
+        }
+      });
     });
     
     // 効果音
     try {
-      this.scene.sound.play('dash_shield');
+      this.scene.sound.play('shield_activate');
     } catch (e) {}
   }
   
@@ -224,59 +197,57 @@ export class Tanker extends BaseCharacter {
   }
   
   useUltimate(): void {
-    // ヴァンガード・シールド: 味方全員に4秒間継続する無敵シールドを配布
-    const duration = 4000; // 4秒間
+    // 鉄壁の守り: 一時的に無敵化＋スタンバリア
     
-    // 自分のシールド
+    // 無敵状態に
     this.player.setInvincible(true);
     
-    // シールドエフェクト
-    const shield = this.scene.add.circle(this.player.x, this.player.y, GameConfig.CHARACTER_RADIUS * 2, 0xff4444, 0.3);
-    shield.setStrokeStyle(3, 0xffaaaa, 0.7);
+    // 無敵エフェクト
+    this.player.setTint(0xffff00);
     
-    // 味方にもシールド付与（プレイヤーが複数人いる場合を想定）
-    const allies = this.scene.children.getAll().filter(obj => 
-      obj instanceof Player && obj !== this.player
-    );
+    // バリア効果
+    const barrier = this.scene.add.circle(this.player.x, this.player.y, 70, 0xffff00, 0.3)
+      .setStrokeStyle(5, 0xffff00, 1);
     
-    const allyShields: Array<Phaser.GameObjects.GameObject> = [];
-    
-    allies.forEach(ally => {
-      if (ally instanceof Player) {
-        ally.setInvincible(true);
-        
-        const allyShield = this.scene.add.circle(ally.x, ally.y, GameConfig.CHARACTER_RADIUS * 2, 0xff4444, 0.3);
-        allyShield.setStrokeStyle(3, 0xffaaaa, 0.7);
-        allyShields.push(allyShield);
-        
-        // シールドの位置を更新
-        this.scene.events.on('update', () => {
-          allyShield.setPosition(ally.x, ally.y);
-        });
-      }
+    // パルスエフェクト
+    this.scene.tweens.add({
+      targets: barrier,
+      scale: { from: 0.5, to: 1 },
+      alpha: { from: 0.8, to: 0.3 },
+      duration: 500,
+      ease: 'Sine.easeOut'
     });
     
-    // 効果音
-    try {
-      this.scene.sound.play('shield_ultimate');
-    } catch (e) {}
-    
-    // シールドの位置を更新
-    this.scene.events.on('update', () => {
-      shield.setPosition(this.player.x, this.player.y);
+    // バリアを点滅
+    this.scene.tweens.add({
+      targets: barrier,
+      alpha: { from: 0.3, to: 0.6 },
+      yoyo: true,
+      repeat: 5,
+      duration: 600
     });
     
-    // アルティメット終了時にシールドを解除
-    this.scene.time.delayedCall(duration, () => {
-      shield.destroy();
-      allyShields.forEach(s => s.destroy());
-      this.player.setInvincible(false);
-      
-      allies.forEach(ally => {
-        if (ally instanceof Player) {
-          ally.setInvincible(false);
-        }
-      });
+    // カメラシェイク
+    this.scene.cameras.main.shake(300, 0.02);
+    
+    // 光の粒子
+    const particles = this.scene.add.particles(this.player.x, this.player.y, 'default', {
+      speed: { min: 50, max: 150 },
+      scale: { start: 0.2, end: 0 },
+      blendMode: 'ADD',
+      tint: 0xffff00,
+      lifespan: 800,
+      quantity: 20
     });
-  }
-}
+    
+    // バリアにプレイヤーを追従
+    this.scene.time.addEvent({
+      delay: 30,
+      callback: () => {
+        if (barrier && this.player) {
+          barrier.setPosition(this.player.x, this.player.y);
+          particles.setPosition(this.player.x, this.player.y);
+          
+          // 周囲の敵をノックバック
+          const enemies = (this.scene as any).enemyBots;
+          if (enemies)

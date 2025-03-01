@@ -1,161 +1,289 @@
 import Phaser from 'phaser';
-import { BaseCharacter } from '../BaseCharacter';
 import { Player, SkillType } from '../../objects/Player';
+import { BaseCharacter } from './../BaseCharacter';
 import { WeaponType } from '../../utils/WeaponTypes';
 import { GameConfig } from '../../config/GameConfig';
 
 /**
- * ユーグ（騎士）のキャラクタークラス
+ * レオン（近接戦闘型）のキャラクタークラス
  */
 export class Knight extends BaseCharacter {
-  private gatlingCooldown: boolean = false;
-  
   constructor(scene: Phaser.Scene, player: Player) {
     super(scene, player);
   }
   
   getName(): string {
-    return 'ユーグ';
+    return 'レオン';
   }
   
   getSkillName(): string {
-    return 'バレット・ストーム';
+    return 'チャージダッシュ';
   }
   
   getUltimateName(): string {
-    return 'フォートレス・ウォール';
+    return '剣の旋風';
   }
   
   getSkillDescription(): string {
-    return 'ガトリング乱射 - 範囲攻撃、リーチ短め';
+    return '一定距離を素早く移動し、接触した敵にダメージを与える';
   }
   
   getUltimateDescription(): string {
-    return 'バリケード：周囲に壁を生成';
+    return '周囲の敵に大ダメージを与える範囲攻撃';
   }
   
   getWeaponType(): WeaponType {
-    return WeaponType.PISTOL;
+    return WeaponType.MELEE;
   }
   
   getSkillType(): SkillType {
-    return SkillType.GATLING;
+    return SkillType.DASH;
   }
   
   initializeStats(): void {
-    this.player.setMaxHealth(100);
-    this.player.setSpeed(100);
+    this.player.setMaxHealth(120);
+    this.player.setSpeed(180);
     this.player.setWeapon(this.getWeaponType());
     this.player.setSpecialAbility(this.getSkillType());
-    this.player.setTint(0xffffff);
+    this.player.setTint(0xcccccc);
   }
   
-  useSkill(targetX: number, targetY: number): void {
-    if (this.gatlingCooldown) return;
-    
+  // 近接攻撃の特殊処理を実装
+  useAttack(targetX: number, targetY: number): boolean {
     const angle = Math.atan2(targetY - this.player.y, targetX - this.player.x);
-    const bulletCount = 15;
-    const spreadAngle = Math.PI / 12; // 15度
-    const delay = 50; // 弾の間隔（ミリ秒）
-    const damage = 5;
     
-    // ガトリングのエフェクト
-    this.scene.add.particles(this.player.x, this.player.y, 'default', {
-      speed: { min: 20, max: 50 },
-      scale: { start: 0.3, end: 0 },
-      blendMode: 'ADD',
-      tint: 0xffff00,
-      lifespan: 300,
-      quantity: 5
+    // プレイヤーの向きを設定
+    this.player.setRotation(angle);
+    
+    // 剣の攻撃範囲を可視化
+    const slashGraphics = this.scene.add.graphics();
+    slashGraphics.lineStyle(4, 0xffffff, 0.8);
+    slashGraphics.beginPath();
+    
+    // 扇形の攻撃範囲
+    const attackRange = GameConfig.CHARACTER_RADIUS * 2.5;
+    const attackAngle = Math.PI / 3; // 60度
+    
+    // 扇形を描画
+    slashGraphics.arc(
+      this.player.x, 
+      this.player.y, 
+      attackRange,
+      angle - attackAngle / 2,
+      angle + attackAngle / 2
+    );
+    slashGraphics.lineTo(this.player.x, this.player.y);
+    slashGraphics.closePath();
+    slashGraphics.strokePath();
+    
+    // 攻撃エフェクトのアニメーション
+    this.scene.tweens.add({
+      targets: slashGraphics,
+      alpha: { from: 1, to: 0 },
+      duration: 300,
+      onComplete: () => {
+        slashGraphics.destroy();
+      }
     });
     
-    // 複数の弾を発射
-    for (let i = 0; i < bulletCount; i++) {
-      this.scene.time.delayedCall(i * delay, () => {
-        // 乱射のためランダムな角度のずれを加える
-        const randomSpread = (Math.random() - 0.5) * spreadAngle;
-        const bulletAngle = angle + randomSpread;
-        
-        const bullet = this.scene.physics.add.image(
-          this.player.x, this.player.y, 'default'
-        ).setDisplaySize(5, 5)
-         .setTint(0xffff00)
-         .setDepth(3);
-        
-        // 弾の速度
-        const speed = 300;
-        bullet.setVelocity(
-          Math.cos(bulletAngle) * speed,
-          Math.sin(bulletAngle) * speed
-        );
-        
-        // 弾の寿命
-        this.scene.time.delayedCall(500, () => {
-          bullet.destroy();
-        });
-        
-        // 敵との衝突判定
-        const enemies = (this.scene as any).enemyBots;
-        if (enemies) {
-          enemies.forEach((enemy: any) => {
-            if (enemy && enemy.bot) {
-              this.scene.physics.add.overlap(
-                bullet, 
-                enemy.bot, 
-                () => {
-                  enemy.bot.takeDamage(damage);
-                  bullet.destroy();
-                }
-              );
+    // 攻撃範囲内の敵にダメージを与える
+    const enemies = (this.scene as any).enemyBots;
+    if (enemies) {
+      enemies.forEach((enemy: any) => {
+        if (enemy && enemy.bot) {
+          // 敵との角度を計算
+          const enemyAngle = Phaser.Math.Angle.Between(
+            this.player.x, this.player.y,
+            enemy.bot.x, enemy.bot.y
+          );
+          
+          // 攻撃の角度範囲内か確認
+          const angleDiff = Phaser.Math.Angle.Wrap(enemyAngle - angle);
+          if (Math.abs(angleDiff) <= attackAngle / 2) {
+            // 距離も確認
+            const distance = Phaser.Math.Distance.Between(
+              this.player.x, this.player.y,
+              enemy.bot.x, enemy.bot.y
+            );
+            
+            if (distance <= attackRange + GameConfig.CHARACTER_RADIUS) {
+              // ダメージを与える
+              enemy.bot.takeDamage(30);
             }
-          });
+          }
         }
       });
     }
     
     // 効果音
     try {
-      this.scene.sound.play('gatling');
+      this.scene.sound.play('sword_swing');
     } catch (e) {}
     
-    // 使用後のクールダウン
-    this.gatlingCooldown = true;
-    this.scene.time.delayedCall(GameConfig.SKILL_COOLDOWN, () => {
-      this.gatlingCooldown = false;
-    });
+    return true; // 独自攻撃を実装したのでtrueを返す
   }
   
-  useUltimate(): void {
-    // フォートレス・ウォール: 周囲に壁を生成する
-    const wallCount = 4;
-    const radius = 80;
-    const walls: Array<Phaser.GameObjects.Rectangle> = [];
-    const duration = 10000; // 10秒間持続
+  useSkill(targetX: number, targetY: number): void {
+    // チャージダッシュ: 敵を貫通して攻撃する突進
+    const angle = Math.atan2(targetY - this.player.y, targetX - this.player.x);
+    const dashDistance = 200;
     
-    for (let i = 0; i < wallCount; i++) {
-      const angle = (Math.PI * 2 / wallCount) * i;
-      const x = this.player.x + Math.cos(angle) * radius;
-      const y = this.player.y + Math.sin(angle) * radius;
-      
-      const wall = this.scene.add.rectangle(x, y, 30, 30, 0xaaaaaa)
-        .setStrokeStyle(2, 0xffffff)
-        .setDepth(2);
-      walls.push(wall);
-      
-      // 物理ボディを追加
-      this.scene.physics.add.existing(wall, true);
-      const body = (wall.body as Phaser.Physics.Arcade.Body);
-      body.setImmovable(true);
-    }
+    // ダッシュ先の座標
+    const dashX = this.player.x + Math.cos(angle) * dashDistance;
+    const dashY = this.player.y + Math.sin(angle) * dashDistance;
+    
+    // 無敵状態に
+    this.player.setInvincible(true);
+    
+    // ダッシュ中のエフェクト
+    const trail = this.scene.add.particles(this.player.x, this.player.y, 'default', {
+      speed: 0,
+      scale: { start: 0.5, end: 0 },
+      blendMode: 'ADD',
+      tint: 0xffffff,
+      lifespan: 300,
+      quantity: 5
+    });
+    
+    // ダッシュ方向に光る剣のエフェクト
+    const slash = this.scene.add.graphics();
+    slash.lineStyle(8, 0xffffff, 0.7);
+    slash.beginPath();
+    slash.moveTo(this.player.x, this.player.y);
+    slash.lineTo(dashX, dashY);
+    slash.strokePath();
+    
+    // 剣のエフェクトをアニメーション
+    this.scene.tweens.add({
+      targets: slash,
+      alpha: { from: 0.7, to: 0 },
+      duration: 200
+    });
+    
+    // Tweenでダッシュ移動
+    this.scene.tweens.add({
+      targets: this.player,
+      x: dashX,
+      y: dashY,
+      duration: 200,
+      ease: 'Power2',
+      onUpdate: () => {
+        // エフェクト位置を更新
+        trail.setPosition(this.player.x, this.player.y);
+        
+        // ダッシュ中に敵と接触したらダメージ
+        const enemies = (this.scene as any).enemyBots;
+        if (enemies) {
+          enemies.forEach((enemy: any) => {
+            if (enemy && enemy.bot) {
+              const dist = Phaser.Math.Distance.Between(
+                this.player.x, this.player.y,
+                enemy.bot.x, enemy.bot.y
+              );
+              
+              if (dist <= GameConfig.CHARACTER_RADIUS * 2) {
+                enemy.bot.takeDamage(20);
+              }
+            }
+          });
+        }
+      },
+      onComplete: () => {
+        // ダッシュ完了
+        trail.destroy();
+        slash.destroy();
+        this.player.setInvincible(false);
+      }
+    });
     
     // 効果音
     try {
-      this.scene.sound.play('wall_create');
+      this.scene.sound.play('dash');
     } catch (e) {}
+  }
+  
+  useUltimate(): void {
+    // 剣の旋風: 周囲360度の強力な斬撃
+    const blastRadius = 150;
     
-    // アルティメット終了時に壁を削除
-    this.scene.time.delayedCall(duration, () => {
-      walls.forEach(wall => wall.destroy());
+    // 回転エフェクト - 1段階目
+    const slash1 = this.scene.add.circle(this.player.x, this.player.y, blastRadius * 0.5, 0xffffff, 0.5)
+      .setStrokeStyle(8, 0xffffff, 1);
+    
+    // 回転アニメーション
+    this.scene.tweens.add({
+      targets: slash1,
+      rotation: Math.PI * 2,
+      duration: 800,
+      ease: 'Sine.easeInOut'
     });
+    
+    // 2段階目の遅延エフェクト
+    this.scene.time.delayedCall(300, () => {
+      const slash2 = this.scene.add.circle(this.player.x, this.player.y, blastRadius * 0.8, 0xcccccc, 0.3)
+        .setStrokeStyle(5, 0xcccccc, 0.8);
+      
+      this.scene.tweens.add({
+        targets: slash2,
+        rotation: Math.PI * 2,
+        duration: 800,
+        ease: 'Sine.easeInOut',
+        onComplete: () => {
+          slash2.destroy();
+        }
+      });
+    });
+    
+    // 最終段階のエフェクト
+    this.scene.time.delayedCall(600, () => {
+      const slashFinal = this.scene.add.circle(this.player.x, this.player.y, blastRadius, 0xffffff, 0)
+        .setStrokeStyle(3, 0xffffff, 0.6);
+      
+      // 回転パーティクル
+      const particles = this.scene.add.particles(this.player.x, this.player.y, 'default', {
+        speed: 200,
+        scale: { start: 0.4, end: 0 },
+        blendMode: 'ADD',
+        tint: 0xffffff,
+        lifespan: 700,
+        quantity: 30,
+        emitZone: {
+          type: 'edge',
+          source: new Phaser.Geom.Circle(0, 0, blastRadius * 0.9),
+          quantity: 30
+        }
+      });
+      
+      // 周囲の敵にダメージ
+      const enemies = (this.scene as any).enemyBots;
+      if (enemies) {
+        enemies.forEach((enemy: any) => {
+          if (enemy && enemy.bot) {
+            const dist = Phaser.Math.Distance.Between(
+              this.player.x, this.player.y,
+              enemy.bot.x, enemy.bot.y
+            );
+            
+            if (dist <= blastRadius + GameConfig.CHARACTER_RADIUS) {
+              // 距離に応じたダメージ減衰なし - 範囲内は同じダメージ
+              const damage = 120;
+              enemy.bot.takeDamage(damage);
+            }
+          }
+        });
+      }
+      
+      // エフェクト削除
+      this.scene.time.delayedCall(700, () => {
+        slashFinal.destroy();
+        particles.destroy();
+        slash1.destroy();
+      });
+    });
+    
+    // 効果音
+    try {
+      this.scene.sound.play('sword_ultimate');
+    } catch (e) {}
   }
 }

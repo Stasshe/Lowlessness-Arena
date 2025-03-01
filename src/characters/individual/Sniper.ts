@@ -1,39 +1,36 @@
 import Phaser from 'phaser';
-import { BaseCharacter } from '../BaseCharacter';
 import { Player, SkillType } from '../../objects/Player';
+import { BaseCharacter } from './../BaseCharacter';
 import { WeaponType } from '../../utils/WeaponTypes';
-import { GameConfig } from '../../config/GameConfig';
-
 
 /**
- * ベアトリス（スナイパー）のキャラクタークラス
+ * スカウト（スナイパー）のキャラクタークラス
  */
 export class Sniper extends BaseCharacter {
-  private ultimateActive: boolean = false;
-  private rapidFireTimer: Phaser.Time.TimerEvent | null = null;
+  private isScopeActive: boolean = false;
   
   constructor(scene: Phaser.Scene, player: Player) {
     super(scene, player);
   }
   
   getName(): string {
-    return 'ベアトリス';
+    return 'スカウト';
   }
   
   getSkillName(): string {
-    return 'ピアス・ストライク';
+    return 'プレシジョンスコープ';
   }
   
   getUltimateName(): string {
-    return 'ラピッド・ファイア';
+    return 'ピアシングショット';
   }
   
   getSkillDescription(): string {
-    return '壁を貫通するスナイパー銃';
+    return '一定時間、照準精度が上がり、射程距離が伸びる';
   }
   
   getUltimateDescription(): string {
-    return '5秒間連続射撃';
+    return 'マップを横断する強力な一撃';
   }
   
   getWeaponType(): WeaponType {
@@ -41,178 +38,198 @@ export class Sniper extends BaseCharacter {
   }
   
   getSkillType(): SkillType {
-    return SkillType.PIERCE_SHOT;
+    return SkillType.SCOPE;
   }
   
   initializeStats(): void {
     this.player.setMaxHealth(80);
-    this.player.setSpeed(90);
+    this.player.setSpeed(190);
     this.player.setWeapon(this.getWeaponType());
     this.player.setSpecialAbility(this.getSkillType());
     this.player.setTint(0x0000ff);
   }
   
-  useSkill(targetX: number, targetY: number): void {
-    // ピアス・ストライク: 壁を貫通するスナイパーショット
-    const angle = Math.atan2(targetY - this.player.y, targetX - this.player.x);
-    const pierceDistance = 1000; // 貫通射程
-    const damage = 30; // 貫通弾のダメージ
+  useSkill(_targetX: number, _targetY: number): void {
+    // すでにスコープモード中なら効果を延長するだけ
+    if (this.isScopeActive) {
+      // スコープ効果時間を延長
+      this.scene.time.removeAllEvents();
+    }
     
-    // レーザーサイトエフェクト
-    const laser = this.scene.add.graphics();
-    laser.lineStyle(1, 0xff0000, 0.6);
-    laser.lineBetween(
-      this.player.x, 
-      this.player.y, 
-      this.player.x + Math.cos(angle) * pierceDistance,
-      this.player.y + Math.sin(angle) * pierceDistance
-    );
+    // プレシジョンスコープ: 射程と精度が向上
+    this.isScopeActive = true;
     
-    // 短時間表示後に消す
-    this.scene.time.delayedCall(100, () => {
-      laser.destroy();
-    });
+    // 武器の射程を50%増加
+    const weapon = this.player.getWeapon();
+    if (weapon) {
+      weapon.setRangeMultiplier(1.5);
+    }
     
-    // 貫通弾の作成
-    const bullet = this.scene.physics.add.image(
-      this.player.x, this.player.y, 'default'
-    ).setDisplaySize(10, 4)
-     .setTint(0xff0000)
-     .setRotation(angle)
-     .setDepth(4);
+    // スコープのビジュアル効果
+    const scopeEffect = this.scene.add.container(this.player.x, this.player.y);
     
-    // 弾の速度
-    const speed = 1200;
-    bullet.setVelocity(
-      Math.cos(angle) * speed,
-      Math.sin(angle) * speed
-    );
+    // 集中線エフェクト
+    const lines = [];
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 / 8) * i;
+      const x1 = Math.cos(angle) * 30;
+      const y1 = Math.sin(angle) * 30;
+      const x2 = Math.cos(angle) * 50;
+      const y2 = Math.sin(angle) * 50;
+      
+      const line = this.scene.add.line(0, 0, x1, y1, x2, y2, 0x0000ff, 0.6);
+      lines.push(line);
+      scopeEffect.add(line);
+    }
     
-    // 貫通弾のトレイルエフェクト
-    const trail = this.scene.add.particles(this.player.x, this.player.y, 'default', {
-      speed: 0,
-      scale: { start: 0.3, end: 0 },
-      blendMode: 'ADD',
-      tint: 0xff0000,
-      lifespan: 300,
-      quantity: 4,
-      frequency: 5
-    });
+    // 照準のクロスヘア
+    const crosshair = this.scene.add.container(0, 0);
+    crosshair.add(this.scene.add.circle(0, 0, 20, 0, 0.5).setStrokeStyle(1, 0x0000ff, 0.7));
+    crosshair.add(this.scene.add.circle(0, 0, 5, 0, 0.5).setStrokeStyle(1, 0x0000ff, 0.7));
+    crosshair.add(this.scene.add.line(-20, 0, 0, 0, 15, 0, 0x0000ff, 0.7));
+    crosshair.add(this.scene.add.line(5, 0, 0, 0, 15, 0, 0x0000ff, 0.7));
+    crosshair.add(this.scene.add.line(0, -20, 0, 0, 0, 15, 0x0000ff, 0.7));
+    crosshair.add(this.scene.add.line(0, 5, 0, 0, 0, 15, 0x0000ff, 0.7));
     
-    // 弾の更新処理を追加
-    const bulletUpdate = this.scene.time.addEvent({
-      delay: 16,
+    scopeEffect.add(crosshair);
+    
+    // プレイヤーに追従
+    this.scene.time.addEvent({
+      delay: 30,
       callback: () => {
-        trail.setPosition(bullet.x, bullet.y);
-        
-        // 敵との衝突判定
-        const enemies = (this.scene as any).enemyBots;
-        if (enemies) {
-          enemies.forEach((enemy: any) => {
-            if (enemy && enemy.bot) {
-              const dist = Phaser.Math.Distance.Between(bullet.x, bullet.y, enemy.bot.x, enemy.bot.y);
-              if (dist < GameConfig.CHARACTER_RADIUS * 1.2) {
-                enemy.bot.takeDamage(damage);
-                
-                // 貫通するので弾は消さない
-                this.scene.add.particles(enemy.bot.x, enemy.bot.y, 'default', {
-                  speed: 50,
-                  scale: { start: 0.2, end: 0 },
-                  blendMode: 'ADD',
-                  tint: 0xff0000,
-                  lifespan: 200,
-                  quantity: 15
-                });
-              }
-            }
-          });
+        if (scopeEffect && this.player) {
+          scopeEffect.setPosition(this.player.x, this.player.y);
         }
       },
-      callbackScope: this,
-      loop: true
+      repeat: -1
     });
     
-    // 弾の寿命
-    this.scene.time.delayedCall(1000, () => {
-      bullet.destroy();
-      trail.destroy();
-      bulletUpdate.destroy();
+    // 効果時間（5秒）
+    this.scene.time.delayedCall(5000, () => {
+      // スコープモード終了
+      this.isScopeActive = false;
+      
+      // 射程を元に戻す
+      if (weapon) {
+        weapon.resetRangeMultiplier();
+      }
+      
+      // エフェクト削除
+      if (scopeEffect) {
+        // スコープエフェクトをフェードアウト
+        this.scene.tweens.add({
+          targets: scopeEffect,
+          alpha: 0,
+          duration: 300,
+          onComplete: () => {
+            scopeEffect.destroy();
+          }
+        });
+      }
     });
     
     // 効果音
     try {
-      this.scene.sound.play('sniper_pierce');
+      this.scene.sound.play('scope_activate');
     } catch (e) {}
   }
   
   useUltimate(): void {
-    // ラピッド・ファイア: 5秒間連続射撃
-    this.ultimateActive = true;
-    const duration = 5000; // 5秒間
+    // ピアシングショット: マップを横断する強力な一撃
+    const angle = this.player.rotation;
+    const range = 2000; // 非常に長い射程
     
-    // 連続射撃のセットアップ
-    const shotInterval = 300; // 300ミリ秒ごとに発射
-    const maxShots = Math.floor(duration / shotInterval);
+    // 照準線（準備）
+    const aimLine = this.scene.add.line(
+      0, 0,
+      this.player.x, this.player.y,
+      this.player.x + Math.cos(angle) * range,
+      this.player.y + Math.sin(angle) * range,
+      0xff0000, 0.5
+    ).setOrigin(0, 0).setLineWidth(1);
     
-    // エフェクト
-    const rapidFireEffect = this.scene.add.circle(this.player.x, this.player.y, GameConfig.CHARACTER_RADIUS * 1.5, 0xff0000, 0.2);
-    rapidFireEffect.setStrokeStyle(1, 0xff3300, 0.6);
-    
-    // エフェクトをプレイヤーに追従
-    const effectUpdate = this.scene.time.addEvent({
-      delay: 16,
-      callback: () => {
-        rapidFireEffect.setPosition(this.player.x, this.player.y);
-      },
-      callbackScope: this,
-      loop: true
-    });
-    
-    // 連続射撃
-    let currentShot = 0;
-    this.rapidFireTimer = this.scene.time.addEvent({
-      delay: shotInterval,
-      callback: () => {
-        if (currentShot >= maxShots || !this.ultimateActive) {
-          this.rapidFireTimer?.destroy();
-          this.ultimateActive = false;
-          return;
-        }
-        
-        // プレイヤーの向きに発射
-        const angle = this.player.rotation;
-        const distance = 800;
-        const targetX = this.player.x + Math.cos(angle) * distance;
-        const targetY = this.player.y + Math.sin(angle) * distance;
-        
-        // 通常攻撃発射
-        this.player.attack(targetX, targetY);
-        currentShot++;
-      },
-      callbackScope: this,
-      loop: true
-    });
-    
-    // 効果音
-    try {
-      this.scene.sound.play('rapid_fire');
-    } catch (e) {}
-    
-    // 一定時間後にエフェクト終了
-    this.scene.time.delayedCall(duration, () => {
-      this.ultimateActive = false;
-      if (this.rapidFireTimer) {
-        this.rapidFireTimer.destroy();
-        this.rapidFireTimer = null;
+    // 照準の警告エフェクト
+    this.scene.tweens.add({
+      targets: aimLine,
+      alpha: { from: 0.2, to: 0.8 },
+      yoyo: true,
+      repeat: 1,
+      duration: 300,
+      onComplete: () => {
+        // 警告後に本命の弾を発射
+        this.fireUltimateShot(angle, range);
+        aimLine.destroy();
       }
-      rapidFireEffect.destroy();
-      effectUpdate.destroy();
     });
+    
+    // レーザーサイトの効果音
+    try {
+      this.scene.sound.play('laser_sight');
+    } catch (e) {}
   }
   
-  destroy(): void {
-    if (this.rapidFireTimer) {
-      this.rapidFireTimer.destroy();
+  private fireUltimateShot(angle: number, range: number): void {
+    // 直線上の終点座標
+    const endX = this.player.x + Math.cos(angle) * range;
+    const endY = this.player.y + Math.sin(angle) * range;
+    
+    // ビーム表示
+    const beam = this.scene.add.rectangle(
+      this.player.x, this.player.y, 
+      range, 5, 
+      0xff0000, 0.7
+    ).setOrigin(0, 0.5).setRotation(angle);
+    
+    // フラッシュエフェクト
+    this.scene.cameras.main.flash(300, 255, 255, 255, true);
+    
+    // ビームのフェードアウト
+    this.scene.tweens.add({
+      targets: beam,
+      alpha: 0,
+      width: range * 1.1,
+      height: 2,
+      duration: 800,
+      ease: 'Power2',
+      onComplete: () => {
+        beam.destroy();
+      }
+    });
+    
+    // 直線上の敵にダメージ
+    const enemies = (this.scene as any).enemyBots;
+    if (enemies) {
+      enemies.forEach((enemy: any) => {
+        if (enemy && enemy.bot) {
+          // 直線との距離を計算
+          const dist = Phaser.Math.Distance.PointToLine(
+            { x: enemy.bot.x, y: enemy.bot.y },
+            { x: this.player.x, y: this.player.y },
+            { x: endX, y: endY }
+          );
+          
+          // 直線上の敵（許容範囲）にダメージ
+          if (dist <= 20) {
+            // 壁チェックなし - 貫通攻撃なので
+            enemy.bot.takeDamage(150);
+            
+            // 被弾エフェクト
+            this.scene.add.particles(enemy.bot.x, enemy.bot.y, 'default', {
+              speed: 100,
+              scale: { start: 0.4, end: 0 },
+              blendMode: 'ADD',
+              tint: 0xff0000,
+              lifespan: 300,
+              quantity: 10
+            });
+          }
+        }
+      });
     }
+    
+    // 射撃音
+    try {
+      this.scene.sound.play('sniper_ultimate');
+    } catch (e) {}
   }
 }

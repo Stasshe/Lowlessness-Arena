@@ -1056,10 +1056,10 @@ export class TrainingScene extends Phaser.Scene {
     this.physics.add.collider(
       playerBullets,
       this.gameManager.getMap().getWalls(),
-      (bulletObj, _wall) => {  // 未使用の変数名を_wallに変更
+      (bulletObj, wall) => {  // 未使用の変数名を_wallに変更
         if (bulletObj instanceof Phaser.Physics.Arcade.Sprite) {
           const bullet = bulletObj as Bullet;
-          bullet.onHit();
+          bullet.onHit(wall);
         }
       },
       undefined,
@@ -1082,7 +1082,7 @@ export class TrainingScene extends Phaser.Scene {
                 
                 const damage = bullet.getDamage();
                 enemyPlayer.takeDamage(damage);
-                bullet.onHit();
+                bullet.onHit(enemy);
                 
                 this.gameManager.playHitSound();
               }
@@ -1109,7 +1109,7 @@ export class TrainingScene extends Phaser.Scene {
                   
                   const damage = bullet.getDamage();
                   this.gameManager.getPlayer().takeDamage(damage);
-                  bullet.onHit();
+                  bullet.onHit(playerObj);
                   
                   this.gameManager.playDamageSound();
                 }

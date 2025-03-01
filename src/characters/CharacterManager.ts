@@ -3,6 +3,7 @@ import { Player } from '../objects/Player';
 import { CharacterType } from './CharacterFactory';
 import { CharacterHandler } from './CharacterHandler';
 import { CharacterData } from '../utils/CharacterData';
+import { PlayerState } from '../objects/Player';
 
 /**
  * キャラクター関連の機能を統合管理するマネージャークラス
@@ -100,5 +101,76 @@ export class CharacterManager {
    */
   destroy(): void {
     this.characterHandler.destroy();
+  }
+
+  /**
+   * 武器の照準を更新
+   * @param targetX ターゲットX座標
+   * @param targetY ターゲットY座標
+   * @param joystickDistance ジョイスティックの距離（オプション）
+   * @returns 照準ポイント情報
+   */
+  updateAiming(
+    targetX: number, 
+    targetY: number, 
+    joystickDistance?: number
+  ): { targetPoint: Phaser.Math.Vector2, trajectoryPoints?: Phaser.Math.Vector2[] } {
+    // プレイヤーの状態を確認
+    if (this.player.getState() === PlayerState.DEAD) {
+      this.player.clearAiming();
+      return { targetPoint: new Phaser.Math.Vector2(this.player.x, this.player.y) };
+    }
+    
+    // キャラクター固有の照準表示があればそれを使用
+    const character = this.characterHandler.getCharacter();
+    if (character && typeof character.updateAiming === 'function') {
+      return character.updateAiming(targetX, targetY, joystickDistance);
+    }
+    
+    // デフォルトの照準表示
+    return this.player.updateAiming(targetX, targetY, joystickDistance);
+  }
+  
+  /**
+   * スキル用照準を更新
+   * @param targetX ターゲットX座標
+   * @param targetY ターゲットY座標
+   * @param joystickDistance ジョイスティックの距離（オプション）
+   * @returns 照準ポイント情報
+   */
+  updateSkillAiming(
+    targetX: number, 
+    targetY: number, 
+    joystickDistance?: number
+  ): { targetPoint: Phaser.Math.Vector2, area?: Phaser.Geom.Circle | Phaser.Geom.Rectangle } {
+    // プレイヤーの状態を確認
+    if (this.player.getState() === PlayerState.DEAD) {
+      this.player.clearAiming();
+      return { targetPoint: new Phaser.Math.Vector2(this.player.x, this.player.y) };
+    }
+    
+    // キャラクター固有のスキル照準表示があればそれを使用
+    const character = this.characterHandler.getCharacter();
+    if (character && typeof character.updateSkillAiming === 'function') {
+      return character.updateSkillAiming(targetX, targetY, joystickDistance);
+    }
+    
+    // デフォルトのスキル照準表示
+    return this.player.updateSkillAiming(targetX, targetY, joystickDistance);
+  }
+  
+  /**
+   * 壁レイヤーを照準表示に設定
+   * @param layer 壁レイヤー
+   */
+  setWallLayer(layer: Phaser.Tilemaps.TilemapLayer): void {
+    this.player.setWallLayer(layer);
+  }
+  
+  /**
+   * 照準表示をクリア
+   */
+  clearAiming(): void {
+    this.player.clearAiming();
   }
 }

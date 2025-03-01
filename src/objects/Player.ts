@@ -3,6 +3,8 @@ import { GameConfig } from '../config/GameConfig';
 import { Weapon } from './Weapon';
 import { WeaponType } from '../utils/WeaponTypes';
 import { CharacterType } from '../characters/CharacterFactory'; // CharacterTypeをインポート
+import { WeaponAiming } from '../utils/WeaponAiming';
+import { ProjectileCalculator } from '../utils/ProjectileCalculator';
 
 // スキルタイプの列挙
 export enum SkillType {
@@ -49,6 +51,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private characterType: CharacterType = CharacterType.DEFAULT; // キャラクタータイプを保持するプロパティを追加
   private skillEffect: Phaser.GameObjects.Container | null = null;
   private healthBar: Phaser.GameObjects.Graphics;
+  private weaponAiming: WeaponAiming;
+  private projectileCalculator: ProjectileCalculator;
   
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, 'player');
@@ -60,6 +64,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // 物理ボディの設定
     this.setCircle(GameConfig.CHARACTER_RADIUS);
     this.setCollideWorldBounds(true);
+    
+    // 軌道計算オブジェクトを初期化
+    this.projectileCalculator = new ProjectileCalculator();
+    
+    // 照準表示オブジェクトを初期化
+    this.weaponAiming = new WeaponAiming(scene, this.projectileCalculator);
     
     // 武器の初期化
     this.weapon = new Weapon(scene, this, WeaponType.DEFAULT);
@@ -850,5 +860,94 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   setInvincible(value: boolean): void {
     this.isInvincible = value;
+  }
+
+  /**
+   * 照準表示を更新
+   * @param targetX ターゲットX座標
+   * @param targetY ターゲットY座標
+   * @param joystickDistance ジョイスティックの距離（オプション）
+   * @returns 照準ポイント情報
+   */
+  updateAiming(
+    targetX: number, 
+    targetY: number, 
+    joystickDistance?: number
+  ): { targetPoint: Phaser.Math.Vector2, trajectoryPoints?: Phaser.Math.Vector2[] } {
+    if (this.currentState === PlayerState.DEAD) {
+      // 死亡時は照準を表示しない
+      this.weaponAiming.clear();
+      return { targetPoint: new Phaser.Math.Vector2(this.x, this.y) };
+    }
+    
+    const angle = Math.atan2(targetY - this.y, targetX - this.x);
+    const joyDistance = joystickDistance || 0;
+    
+    return this.weaponAiming.showAiming(
+      this.x, 
+      this.y, 
+      angle, 
+      joyDistance, 
+      this.weapon.getType()
+    );
+  }
+  
+  /**
+   * スキル用照準表示を更新
+   * @param targetX ターゲットX座標
+   * @param targetY ターゲットY座標
+   * @param joystickDistance ジョイスティックの距離（オプション）
+   * @returns 照準ポイント情報
+   */
+  updateSkillAiming(
+    targetX: number, 
+    targetY: number, 
+    joystickDistance?: number
+  ): { targetPoint: Phaser.Math.Vector2, area?: Phaser.Geom.Circle | Phaser.Geom.Rectangle } {
+    if (this.currentState === PlayerState.DEAD) {
+      // 死亡時は照準を表示しない
+      this.weaponAiming.clear();
+      return { targetPoint: new Phaser.Math.Vector2(this.x, this.y) };
+    }
+    
+    const angle = Math.atan2(targetY - this.y, targetX - this.x);
+    const joyDistance = joystickDistance || 0;
+    
+    return this.weaponAiming.showSkillAiming(
+      this.x, 
+      this.y, 
+      angle, 
+      joyDistance, 
+      this.specialAbility
+    );
+  }
+  
+  /**
+   * 壁レイヤーを設定
+   * @param layer 壁レイヤー
+   */
+  setWallLayer(layer: Phaser.Tilemaps.TilemapLayer): void {
+    this.weaponAiming.setWallLayer(layer);
+  }
+  
+  /**
+   * 照準表示をクリア
+   */
+  clearAiming(): void {
+    this.weaponAiming.clear();
+  }
+  
+  /**
+   * 軌道計算ユーティリティを取得
+   */
+  getProjectileCalculator(): ProjectileCalculator {
+    return this.projectileCalculator;
+  }
+
+  /**
+   * 照準表示オブジェクトを取得
+   */
+  getWeaponAiming(): WeaponAiming {
+    return this.weaponAiming;
   }
 }

@@ -87,6 +87,38 @@ export abstract class BaseCharacter {
   abstract getUltimateDescription(): string;
   
   /**
+   * 照準表示を更新
+   * @param targetX ターゲットX座標
+   * @param targetY ターゲットY座標
+   * @param joystickDistance ジョイスティックの距離（オプション）
+   * @returns 照準ポイント情報
+   */
+  updateAiming(
+    targetX: number, 
+    targetY: number, 
+    joystickDistance?: number
+  ): { targetPoint: Phaser.Math.Vector2, trajectoryPoints?: Phaser.Math.Vector2[] } {
+    // デフォルトではプレイヤーの標準照準表示を使用
+    return this.player.updateAiming(targetX, targetY, joystickDistance);
+  }
+  
+  /**
+   * スキル用照準表示を更新
+   * @param targetX ターゲットX座標
+   * @param targetY ターゲットY座標
+   * @param joystickDistance ジョイスティックの距離（オプション）
+   * @returns 照準ポイント情報
+   */
+  updateSkillAiming(
+    targetX: number, 
+    targetY: number, 
+    joystickDistance?: number
+  ): { targetPoint: Phaser.Math.Vector2, area?: Phaser.Geom.Circle | Phaser.Geom.Rectangle } {
+    // デフォルトではプレイヤーの標準スキル照準表示を使用
+    return this.player.updateSkillAiming(targetX, targetY, joystickDistance);
+  }
+  
+  /**
    * リソースの解放
    */
   destroy(): void {

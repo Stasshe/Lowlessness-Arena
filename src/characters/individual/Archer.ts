@@ -7,7 +7,7 @@ import { ProjectileCalculator } from '../../utils/ProjectileCalculator';
 import { createSafeTimeline } from '../../utils/TweenUtils';
 
 /**
- * ランセル（アーチャー）のキャラクタークラス
+ * アーチャーのキャラクタークラス
  */
 export class Archer extends BaseCharacter {
   private ultimateActive: boolean = false;
@@ -19,23 +19,23 @@ export class Archer extends BaseCharacter {
   }
   
   getName(): string {
-    return 'ランセル';
+    return 'アーチャー';
   }
   
   getSkillName(): string {
-    return 'トリプル・シャワー';
+    return '三連矢';
   }
   
   getUltimateName(): string {
-    return 'レイン・オブ・アローズ';
+    return '矢の雨';
   }
   
   getSkillDescription(): string {
-    return '放物線を描く3本の矢を一度に放つ';
+    return '3本の矢を同時に発射する';
   }
   
   getUltimateDescription(): string {
-    return '次のスキル使用で10本の矢を放つ';
+    return '広範囲に複数の矢を降らせる';
   }
   
   getWeaponType(): WeaponType {
@@ -47,156 +47,109 @@ export class Archer extends BaseCharacter {
   }
   
   initializeStats(): void {
-    this.player.setMaxHealth(75);
-    this.player.setSpeed(100);
+    this.player.setMaxHealth(90);
+    this.player.setSpeed(230);
     this.player.setWeapon(this.getWeaponType());
     this.player.setSpecialAbility(this.getSkillType());
-    this.player.setTint(0x00ff00);
+    this.player.setTint(0x00aa00);
   }
   
   useSkill(targetX: number, targetY: number): void {
-    // トリプル・シャワー: 放物線を描く3本の矢
+    // 三連矢スキル
     const angle = Math.atan2(targetY - this.player.y, targetX - this.player.x);
-    const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, targetX, targetY);
+    const spreadAngle = 0.15; // 矢の広がり角度
     
-    // アルティメットが有効なら矢の数を増やす
-    const arrowCount = this.ultimateActive ? 10 : 3;
-    const arrowSpread = Math.PI / 12; // 15度
-    const damage = 15;
+    // 中央の矢
+    this.fireArrow(angle, targetX, targetY);
     
-    for (let i = 0; i < arrowCount; i++) {
-      const arrowAngle = angle + (i - Math.floor(arrowCount / 2)) * (arrowSpread / arrowCount);
-      
-      // 1.5~2.5秒のランダムな滞空時間
-      const airTime = 1.5 + Math.random();
-      
-      // 矢の初期位置
-      const arrow = this.scene.physics.add.sprite(this.player.x, this.player.y, 'default')
-        .setDisplaySize(10, 3)
-        .setTint(0x00ff00)
-        .setRotation(arrowAngle)
-        .setDepth(4);
-      
-      // 放物線の軌道パラメータ
-      // より遠くに飛ばすために重力とパワーを調整
-      const power = 300 + distance * 1.5;
-      
-      // 放物線を計算してTweenで動かす
-      const points = this.projectileCalculator.calculateParabolicTrajectory(
-        this.player.x, this.player.y, arrowAngle, power, 980, 20, airTime
-      );
-      
-      // Tweenのタイムライン - TweenUtilsを使用
-      const timeline = createSafeTimeline(this.scene, airTime * 1000);
-      
-      // 各点をタイムライン上で結ぶ
-      for (let j = 1; j < points.length; j++) {
-        const prevPoint = points[j - 1];
-        const point = points[j];
-        
-        // 2点間の角度を計算（矢の向きを調整）
-        const pointAngle = Math.atan2(
-          point.y - prevPoint.y, 
-          point.x - prevPoint.x
-        );
-        
-        timeline.add({
-          targets: arrow,
-          x: point.x,
-          y: point.y,
-          rotation: pointAngle,
-          duration: (airTime / points.length) * 1000,
-          ease: 'Linear'
-        });
-      }
-      
-      // 着弾時のコールバック
-      timeline.setCallback('onComplete', () => {
-        // 着弾エフェクト
-        this.scene.add.particles(arrow.x, arrow.y, 'default', {
-          speed: 50,
-          scale: { start: 0.2, end: 0 },
-          blendMode: 'ADD',
-          tint: 0x00ff00,
-          lifespan: 300,
-          quantity: 10
-        });
-        
-        // 着弾地点の敵にダメージ
-        const enemies = (this.scene as any).enemyBots;
-        if (enemies) {
-          enemies.forEach((enemy: any) => {
-            if (enemy && enemy.bot) {
-              const dist = Phaser.Math.Distance.Between(arrow.x, arrow.y, enemy.bot.x, enemy.bot.y);
-              if (dist < GameConfig.CHARACTER_RADIUS * 1.5) {
-                enemy.bot.takeDamage(damage);
-              }
-            }
-          });
-        }
-        
-        arrow.destroy();
-      });
-      
-      // アニメーション開始
-      timeline.play();
-      
-      // 発射ディレイ
-      this.scene.time.delayedCall(i * 100, () => {
-        // 発射エフェクト
-        this.scene.add.particles(this.player.x, this.player.y, 'default', {
-          speed: 100,
-          scale: { start: 0.2, end: 0 },
-          blendMode: 'ADD',
-          tint: 0x00ff00,
-          lifespan: 200,
-          quantity: 5
-        });
-        
-        // 効果音
-        try {
-          this.scene.sound.play('bow_shot');
-        } catch (e) {}
-      });
-    }
+    // 左右の矢
+    this.fireArrow(angle - spreadAngle, targetX, targetY);
+    this.fireArrow(angle + spreadAngle, targetX, targetY);
     
-    // アルティメット効果があった場合はリセット
-    if (this.ultimateActive) {
-      this.ultimateActive = false;
+    // 効果音
+    try {
+      this.scene.sound.play('bow_multi');
+    } catch (e) {}
+  }
+  
+  private fireArrow(angle: number, targetX: number, targetY: number): void {
+    // 矢を生成（実際の処理はWeapon.tsに任せる）
+    const weapon = this.player.getWeapon();
+    if (weapon) {
+      // 武器のfireメソッドを直接呼び出す
+      // 実際のゲーム実装ではここでarrow objectを生成し、物理と衝突判定を処理
+      weapon['fire'](angle);
     }
   }
   
   useUltimate(): void {
-    // レイン・オブ・アローズ: 次のスキル使用での弓の本数が10になる
-    this.ultimateActive = true;
-    const duration = 5000; // 5秒間有効
+    // 矢の雨
+    const radius = 250; // 効果範囲
+    const arrowCount = 20; // 矢の数
+    const baseDamage = 15; // 基本ダメージ
     
-    // エフェクト
-    const effect = this.scene.add.particles(this.player.x, this.player.y, 'default', {
-      speed: 50,
-      scale: { start: 0.3, end: 0 },
-      blendMode: 'ADD',
-      tint: 0x00ff00,
-      lifespan: 500,
-      quantity: 3
-    });
+    // 効果範囲を表示
+    const effectCircle = this.scene.add.circle(
+      this.player.x, 
+      this.player.y, 
+      radius, 
+      0x00aa00, 
+      0.2
+    );
+    effectCircle.setStrokeStyle(2, 0x00ff00, 0.7);
     
-    // エフェクトをプレイヤーに追従
-    this.scene.events.on('update', () => {
-      effect.setPosition(this.player.x, this.player.y);
-    });
+    // 時間差で矢を降らせる
+    for (let i = 0; i < arrowCount; i++) {
+      this.scene.time.delayedCall(i * 100, () => {
+        // ランダムな位置に矢を降らせる
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * radius;
+        const x = this.player.x + Math.cos(angle) * distance;
+        const y = this.player.y + Math.sin(angle) * distance;
+        
+        // 矢のビジュアルエフェクト
+        const arrowAngle = Math.PI / 2 + (Math.random() - 0.5) * 0.5; // 上から±0.25ラジアン
+        const arrowLength = 20;
+        const arrow = this.scene.add.sprite(x, y - arrowLength, 'default')
+          .setDisplaySize(4, arrowLength)
+          .setOrigin(0.5, 0)
+          .setRotation(arrowAngle)
+          .setTint(0x00ff00);
+        
+        // 落下アニメーション
+        this.scene.tweens.add({
+          targets: arrow,
+          y: y,
+          duration: 200,
+          ease: 'Linear',
+          onComplete: () => {
+            // 着弾効果
+            const splash = this.scene.add.circle(x, y, 15, 0x00ff00, 0.5);
+            
+            // 着弾地点の敵にダメージ
+            const enemies = (this.scene as any).enemyBots;
+            if (enemies) {
+              enemies.forEach((enemy: any) => {
+                if (enemy && enemy.bot) {
+                  const dist = Phaser.Math.Distance.Between(x, y, enemy.bot.x, enemy.bot.y);
+                  if (dist < 20) {
+                    enemy.bot.takeDamage(baseDamage);
+                  }
+                }
+              });
+            }
+            
+            // エフェクト削除
+            splash.destroy();
+            arrow.destroy();
+          }
+        });
+      });
+    }
     
     // 効果音
     try {
-      this.scene.sound.play('arrow_power');
+      this.scene.sound.play('arrow_rain');
     } catch (e) {}
-    
-    // 一定時間後に効果が切れる（矢を撃たなかった場合）
-    this.scene.time.delayedCall(duration, () => {
-      if (this.ultimateActive) {
-        this.ultimateActive = false;
-        effect.destroy();
-      }
-    });
   }
 }

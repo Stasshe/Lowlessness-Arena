@@ -17,6 +17,16 @@ export interface CharacterStats {
   ultimateDescription: string;
 }
 
+export interface CharacterInfo {
+  name: string;
+  description: string;
+  health: number;
+  speed: number;
+  weapon: string;
+  skill: string;
+  color: string;
+}
+
 export class CharacterData {
   // JSONからキャラクターデータを取得
   static getCharacterData(type: CharacterType): CharacterStats {

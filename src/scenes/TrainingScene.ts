@@ -102,11 +102,11 @@ export class TrainingScene extends Phaser.Scene {
     
     // 使用可能なキャラクター一覧
     const characters = [
-      { type: CharacterType.DEFAULT, name: CharacterData.getCharacterName(CharacterType.DEFAULT), color: CharacterData.getCharacterColor(CharacterType.DEFAULT), description: CharacterData.getCharacterDescription(CharacterType.DEFAULT) },
       { type: CharacterType.KNIGHT, name: CharacterData.getCharacterName(CharacterType.KNIGHT), color: CharacterData.getCharacterColor(CharacterType.KNIGHT), description: CharacterData.getCharacterDescription(CharacterType.KNIGHT) },
       { type: CharacterType.TANKER, name: CharacterData.getCharacterName(CharacterType.TANKER), color: CharacterData.getCharacterColor(CharacterType.TANKER), description: CharacterData.getCharacterDescription(CharacterType.TANKER) },
       { type: CharacterType.SNIPER, name: CharacterData.getCharacterName(CharacterType.SNIPER), color: CharacterData.getCharacterColor(CharacterType.SNIPER), description: CharacterData.getCharacterDescription(CharacterType.SNIPER) },
-      { type: CharacterType.BOMBER, name: CharacterData.getCharacterName(CharacterType.BOMBER), color: CharacterData.getCharacterColor(CharacterType.BOMBER), description: CharacterData.getCharacterDescription(CharacterType.BOMBER) }
+      { type: CharacterType.BOMBER, name: CharacterData.getCharacterName(CharacterType.BOMBER), color: CharacterData.getCharacterColor(CharacterType.BOMBER), description: CharacterData.getCharacterDescription(CharacterType.BOMBER) },
+      { type: CharacterType.HEALER, name: CharacterData.getCharacterName(CharacterType.HEALER), color: CharacterData.getCharacterColor(CharacterType.HEALER), description: CharacterData.getCharacterDescription(CharacterType.HEALER) }
     ];
     
     // キャラクターボタンを横に並べる

@@ -250,4 +250,70 @@ export class Tanker extends BaseCharacter {
           
           // 周囲の敵をノックバック
           const enemies = (this.scene as any).enemyBots;
-          if (enemies)
+          if (enemies) {
+            enemies.forEach((enemy: any) => {
+              if (enemy && enemy.bot) {
+                // 範囲内の敵を検出
+                const distance = Phaser.Math.Distance.Between(
+                  this.player.x, this.player.y,
+                  enemy.bot.x, enemy.bot.y
+                );
+                
+                if (distance <= 150) {
+                  // ノックバック方向を計算
+                  const angle = Phaser.Math.Angle.Between(
+                    this.player.x, this.player.y,
+                    enemy.bot.x, enemy.bot.y
+                  );
+                  
+                  // 距離に応じてノックバックの強さを調整
+                  const knockbackForce = 300 * (1 - distance / 150);
+                  
+                  // ノックバック適用
+                  enemy.bot.setVelocity(
+                    Math.cos(angle) * knockbackForce,
+                    Math.sin(angle) * knockbackForce
+                  );
+                  
+                  // スタン効果（実装に応じて調整）
+                  if (enemy.bot.stun) {
+                    enemy.bot.stun(1000); // 1秒間スタン
+                  }
+                  
+                  // ダメージも与える
+                  enemy.bot.takeDamage(15);
+                }
+              }
+            });
+          }
+        }
+      },
+      repeat: 20 // 一定時間続ける
+    });
+    
+    // 効果音
+    try {
+      this.scene.sound.play('ultimate_shield');
+    } catch (e) {}
+    
+    // 5秒後に効果終了
+    this.scene.time.delayedCall(5000, () => {
+      // 無敵解除
+      this.player.setInvincible(false);
+      
+      // 色を元に戻す
+      this.player.clearTint();
+      
+      // バリアを消す
+      this.scene.tweens.add({
+        targets: [barrier, particles],
+        alpha: 0,
+        duration: 500,
+        onComplete: () => {
+          barrier.destroy();
+          particles.destroy();
+        }
+      });
+    });
+  }
+}

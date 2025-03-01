@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ProjectileCalculator } from './ProjectileCalculator';
 import { WeaponType } from './WeaponTypes';
+import { SkillType } from '../objects/Player';
 
 // 照準表示のスタイル設定
 export interface AimingConfig {
@@ -94,6 +95,10 @@ export class WeaponAiming {
         break;
       case WeaponType.MACHINEGUN:
         result = this.showMachineGunAiming(startX, startY, angle);
+        break;
+      case WeaponType.SLING:
+        // スリング用の特別照準（Bomberキャラクター用）
+        result = this.showSlingAiming(startX, startY, angle, joystickDistance);
         break;
       default:
         result = this.showDefaultAiming(startX, startY, angle);
@@ -301,6 +306,64 @@ export class WeaponAiming {
   }
   
   /**
+   * スリングショット（投石）の照準表示
+   */
+  private showSlingAiming(
+    startX: number, 
+    startY: number, 
+    angle: number, 
+    joystickDistance: number
+  ): { targetPoint: Phaser.Math.Vector2, trajectoryPoints: Phaser.Math.Vector2[] } {
+    // ジョイスティックの距離に応じて発射力を調整
+    const normalizedDistance = Math.min(joystickDistance / 100, 1);
+    const power = 300 + normalizedDistance * 300; // 300-600の範囲で変化
+    
+    // 放物線の軌道を計算（重力を大きくして弧を強調）
+    const trajectoryPoints = this.calculator.calculateParabolicTrajectory(
+      startX, startY, angle, power, 880, 15, 1.0
+    );
+    
+    // 軌道の中間点（頂点付近）を取得してゴムの引っ張り表現に使用
+    const middleIndex = Math.floor(trajectoryPoints.length / 2);
+    const middlePoint = trajectoryPoints[middleIndex];
+    
+    // 軌道を描画
+    if (this.config.showTrajectory) {
+      // 軌道を点線で表示
+      for (let i = 1; i < trajectoryPoints.length; i++) {
+        const prevPoint = trajectoryPoints[i - 1];
+        const currentPoint = trajectoryPoints[i];
+        
+        // 破線効果
+        if (i % 2 === 0) {
+          this.graphics.lineBetween(prevPoint.x, prevPoint.y, currentPoint.x, currentPoint.y);
+        }
+      }
+    }
+    
+    // スリングのゴム紐表現
+    this.graphics.lineStyle(1, 0xff8800, 0.7);
+    this.graphics.lineBetween(startX - 10, startY, middlePoint.x, middlePoint.y);
+    this.graphics.lineBetween(startX + 10, startY, middlePoint.x, middlePoint.y);
+    
+    // 着弾地点
+    const endPoint = trajectoryPoints[trajectoryPoints.length - 1];
+    
+    // 着弾地点を描画
+    this.graphics.fillStyle(0xffaa00, 0.8);
+    this.graphics.fillCircle(endPoint.x, endPoint.y, 5);
+    
+    // 照準円を描画
+    this.graphics.lineStyle(1, 0xffaa00, 0.5);
+    this.graphics.strokeCircle(endPoint.x, endPoint.y, 15);
+    
+    return {
+      targetPoint: new Phaser.Math.Vector2(endPoint.x, endPoint.y),
+      trajectoryPoints: trajectoryPoints
+    };
+  }
+  
+  /**
    * 爆弾の照準表示
    */
   private showBombAiming(startX: number, startY: number, angle: number, joystickDistance: number): { targetPoint: Phaser.Math.Vector2 } {
@@ -367,7 +430,7 @@ export class WeaponAiming {
     startY: number, 
     angle: number, 
     joystickDistance: number,
-    skillType: string
+    skillType: string | SkillType
   ): { targetPoint: Phaser.Math.Vector2, area?: Phaser.Geom.Circle | Phaser.Geom.Rectangle } {
     this.graphics.clear();
     this.graphics.lineStyle(this.config.lineWidth, 0x00ffff, this.config.lineAlpha);
@@ -375,16 +438,18 @@ export class WeaponAiming {
     
     // スキルタイプに基づいて異なる照準を表示
     switch(skillType) {
-      case 'DASH':
+      case SkillType.DASH:
         return this.showDashSkillAiming(startX, startY, angle, joystickDistance);
-      case 'SHIELD':
+      case SkillType.SHIELD:
         return this.showShieldSkillAiming(startX, startY);
-      case 'HEAL':
+      case SkillType.HEAL:
         return this.showHealSkillAiming(startX, startY);
-      case 'SCOPE':
+      case SkillType.SCOPE:
         return this.showScopeSkillAiming(startX, startY, angle);
-      case 'BOMB':
+      case SkillType.BOMB:
         return this.showBombSkillAiming(startX, startY, angle, joystickDistance);
+      case SkillType.MINEFIELD:
+        return this.showMinefieldSkillAiming(startX, startY);
       default:
         return this.showDefaultSkillAiming(startX, startY);
     }
@@ -479,7 +544,6 @@ export class WeaponAiming {
     const endY = startY + Math.sin(angle) * distance;
     
     // スコープの視界を描画
-    // 未使用変数を削除
     const leftAngle = angle - 0.1;
     const rightAngle = angle + 0.1;
     
@@ -507,8 +571,30 @@ export class WeaponAiming {
     const maxDistance = 200;
     const throwDistance = Math.min(maxDistance, joystickDistance * 2);
     
-    const endX = startX + Math.cos(angle) * throwDistance;
-    const endY = startY + Math.sin(angle) * throwDistance;
+    // Bomber用のカスタム照準として放物線を表示
+    const normalizedDistance = Math.min(joystickDistance / 100, 1);
+    const power = 300 + normalizedDistance * 500; // 300-800の範囲で変化
+    
+    // 放物線の軌道を計算
+    const trajectoryPoints = this.calculator.calculateParabolicTrajectory(
+      startX, startY, angle, power, 980, 15, 1.5
+    );
+    
+    // 放物線を描画
+    if (this.config.showTrajectory) {
+      for (let i = 1; i < trajectoryPoints.length; i++) {
+        const prevPoint = trajectoryPoints[i - 1];
+        const currentPoint = trajectoryPoints[i];
+        // 破線効果
+        if (i % 2 === 0) {
+          this.graphics.lineBetween(prevPoint.x, prevPoint.y, currentPoint.x, currentPoint.y);
+        }
+      }
+    }
+    
+    // 終点位置
+    const endX = trajectoryPoints[trajectoryPoints.length - 1].x;
+    const endY = trajectoryPoints[trajectoryPoints.length - 1].y;
     
     const blastRadius = 70;
     
@@ -516,28 +602,49 @@ export class WeaponAiming {
     this.graphics.strokeCircle(endX, endY, blastRadius);
     this.graphics.fillCircle(endX, endY, blastRadius);
     
-    // 投げる軌道を点線で表示
-    const dashLength = 5;
-    const gapLength = 5;
-    const lineLength = throwDistance;
-    const segments = Math.floor(lineLength / (dashLength + gapLength));
-    
-    const directionX = Math.cos(angle);
-    const directionY = Math.sin(angle);
-    
-    for (let i = 0; i < segments; i++) {
-      const startDash = i * (dashLength + gapLength);
-      const dashX1 = startX + directionX * startDash;
-      const dashY1 = startY + directionY * startDash;
-      const dashX2 = startX + directionX * (startDash + dashLength);
-      const dashY2 = startY + directionY * (startDash + dashLength);
-      
-      this.graphics.lineBetween(dashX1, dashY1, dashX2, dashY2);
-    }
-    
     return { 
       targetPoint: new Phaser.Math.Vector2(endX, endY),
       area: new Phaser.Geom.Circle(endX, endY, blastRadius)
+    };
+  }
+  
+  private showMinefieldSkillAiming(
+    startX: number, 
+    startY: number
+  ): { targetPoint: Phaser.Math.Vector2, area: Phaser.Geom.Circle } {
+    // 地雷の設置範囲
+    const radius = 30;
+    
+    // 地雷エリアを描画
+    this.graphics.strokeCircle(startX, startY, radius);
+    this.graphics.fillCircle(startX, startY, radius);
+    
+    // 十字マーク
+    this.graphics.lineStyle(2, 0xff0000, 0.8);
+    this.graphics.lineBetween(startX - radius * 0.5, startY, startX + radius * 0.5, startY);
+    this.graphics.lineBetween(startX, startY - radius * 0.5, startX, startY + radius * 0.5);
+    
+    // 外側の点線円（爆発範囲）
+    this.graphics.lineStyle(1, 0xff0000, 0.5);
+    
+    // 爆発範囲を破線で表示
+    const explosionRadius = 80;
+    const segments = 24;
+    const arcSize = (Math.PI * 2) / segments;
+    
+    for (let i = 0; i < segments; i++) {
+      if (i % 2 === 0) {
+        const startAngle = i * arcSize;
+        const endAngle = (i + 1) * arcSize;
+        this.graphics.beginPath();
+        this.graphics.arc(startX, startY, explosionRadius, startAngle, endAngle);
+        this.graphics.strokePath();
+      }
+    }
+    
+    return { 
+      targetPoint: new Phaser.Math.Vector2(startX, startY),
+      area: new Phaser.Geom.Circle(startX, startY, radius)
     };
   }
 }

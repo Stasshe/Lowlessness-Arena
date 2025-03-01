@@ -1,96 +1,80 @@
 import Phaser from 'phaser';
 import { Player } from '../objects/Player';
+import { CharacterType } from './CharacterFactory';
 import { BaseCharacter } from './BaseCharacter';
+import { Archer } from './individual/Archer';
 import { Knight } from './individual/Knight';
 import { Tanker } from './individual/Tanker';
-import { Archer } from './individual/Archer';
 import { Sniper } from './individual/Sniper';
-import { Bomber } from './individual/Bomber'; // パスを修正
-import { CharacterType } from './CharacterFactory';
+import { Bomber } from './individual/Bomber';
+import { Healer } from './individual/Healer';
+import { DefaultCharacter } from './individual/DefaultCharacter';
 
 /**
- * プレイヤーキャラクターに応じた処理を委譲するハンドラクラス
+ * キャラクターとの連携を管理するクラス
  */
 export class CharacterHandler {
   private scene: Phaser.Scene;
   private player: Player;
-  private character: BaseCharacter | null = null;
+  private character: BaseCharacter | null;
+  private characterType: CharacterType;
   
   constructor(scene: Phaser.Scene, player: Player) {
     this.scene = scene;
     this.player = player;
-    this.initializeCharacter();
+    this.characterType = player.getCharacterType();
+    this.character = this.createCharacter(this.characterType);
   }
   
   /**
-   * プレイヤーのキャラクタータイプに基づいて適切なキャラクタークラスを初期化
+   * キャラクタータイプに基づいてキャラクターインスタンスを作成
    */
-  private initializeCharacter(): void {
-    const characterType = this.player.getCharacterType();
-    
-    switch (characterType) {
+  private createCharacter(type: CharacterType): BaseCharacter {
+    switch (type) {
       case CharacterType.KNIGHT:
-        this.character = new Knight(this.scene, this.player);
-        break;
+        return new Knight(this.scene, this.player);
       case CharacterType.TANKER:
-        this.character = new Tanker(this.scene, this.player);
-        break;
+        return new Tanker(this.scene, this.player);
       case CharacterType.ARCHER:
-        this.character = new Archer(this.scene, this.player);
-        break;
+        return new Archer(this.scene, this.player);
       case CharacterType.SNIPER:
-        this.character = new Sniper(this.scene, this.player);
-        break;
+        return new Sniper(this.scene, this.player);
       case CharacterType.BOMBER:
-        this.character = new Bomber(this.scene, this.player);
-        break;
+        return new Bomber(this.scene, this.player);
+      case CharacterType.HEALER:
+        return new Healer(this.scene, this.player);
       default:
-        // デフォルトはナイト
-        this.character = new Knight(this.scene, this.player);
-        break;
+        return new DefaultCharacter(this.scene, this.player);
     }
-    
-    // キャラクターの初期ステータスを設定
-    this.character.initializeStats();
   }
   
   /**
-   * スキルを使用
-   * @param targetX ターゲットX座標
-   * @param targetY ターゲットY座標
+   * キャラクタータイプを設定
    */
-  useSkill(targetX: number, targetY: number): void {
-    if (this.character) {
-      this.character.useSkill(targetX, targetY);
+  setCharacterType(type: CharacterType): void {
+    if (this.characterType !== type) {
+      this.characterType = type;
+      
+      // 既存のキャラクターがあれば解放
+      if (this.character) {
+        this.character.destroy();
+      }
+      
+      // 新しいキャラクターを作成
+      this.character = this.createCharacter(type);
+      
+      // プレイヤーのキャラクタータイプを更新
+      this.player.setCharacterType(type);
+      
+      // キャラクターの初期ステータスを設定
+      if (this.character) {
+        this.character.initializeStats();
+      }
     }
   }
   
   /**
-   * アルティメット能力を使用
-   */
-  useUltimate(): void {
-    if (this.character) {
-      this.character.useUltimate();
-    }
-  }
-  
-  /**
-   * 攻撃処理
-   * @param targetX ターゲットX座標
-   * @param targetY ターゲットY座標
-   * @returns 特殊処理を行った場合はtrue
-   */
-  useAttack(targetX: number, targetY: number): boolean {
-    if (this.character) {
-      return this.character.useAttack(targetX, targetY);
-    }
-    return false;
-  }
-  
-  /**
-   * 更新処理
-   * @param time 現在の時間
-   * @param delta 前フレームからの経過時間
+   * キャラクターの更新処理
    */
   update(time: number, delta: number): void {
     if (this.character) {
@@ -99,18 +83,76 @@ export class CharacterHandler {
   }
   
   /**
-   * キャラクターインスタンスを取得
+   * スキルの使用
+   */
+  useSkill(targetX: number, targetY: number): void {
+    if (this.character) {
+      this.character.useSkill(targetX, targetY);
+    }
+  }
+  
+  /**
+   * アルティメットの使用
+   */
+  useUltimate(): void {
+    if (this.character) {
+      this.character.useUltimate();
+    }
+  }
+  
+  /**
+   * 特殊攻撃の使用
+   * @returns 特殊攻撃を実行した場合はtrue
+   */
+  useAttack(targetX: number, targetY: number): boolean {
+    if (this.character) {
+      return this.character.useAttack(targetX, targetY);
+    }
+    return false;
+  }
+
+  /**
+   * 照準表示の更新
+   */
+  updateAiming(
+    targetX: number, 
+    targetY: number, 
+    joystickDistance?: number
+  ): { targetPoint: Phaser.Math.Vector2, trajectoryPoints?: Phaser.Math.Vector2[] } {
+    if (this.character) {
+      return this.character.updateAiming(targetX, targetY, joystickDistance);
+    }
+    // キャラクターがない場合はプレイヤーのデフォルト照準を使う
+    return this.player.updateAiming(targetX, targetY, joystickDistance);
+  }
+  
+  /**
+   * スキル照準表示の更新
+   */
+  updateSkillAiming(
+    targetX: number, 
+    targetY: number, 
+    joystickDistance?: number
+  ): { targetPoint: Phaser.Math.Vector2, area?: Phaser.Geom.Circle | Phaser.Geom.Rectangle } {
+    if (this.character) {
+      return this.character.updateSkillAiming(targetX, targetY, joystickDistance);
+    }
+    // キャラクターがない場合はプレイヤーのデフォルトスキル照準を使う
+    return this.player.updateSkillAiming(targetX, targetY, joystickDistance);
+  }
+  
+  /**
+   * 現在のキャラクターを取得
    */
   getCharacter(): BaseCharacter | null {
     return this.character;
   }
   
   /**
-   * キャラクタータイプ変更時に再初期化
+   * 現在のキャラクタータイプを取得
    */
-  setCharacterType(type: CharacterType): void {
-    this.player.setCharacterType(type);
-    this.initializeCharacter();
+  getCharacterType(): CharacterType {
+    return this.characterType;
   }
   
   /**

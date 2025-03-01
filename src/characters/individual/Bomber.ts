@@ -5,6 +5,7 @@ import { WeaponType } from '../../utils/WeaponTypes';
 import { GameConfig } from '../../config/GameConfig';
 import { ProjectileCalculator } from '../../utils/ProjectileCalculator';
 import { createSafeTimeline } from '../../utils/TweenUtils';
+import { moveAlongPath } from '../../utils/TweenUtils';
 
 /**
  * マルグリット（爆弾魔）のキャラクタークラス
@@ -14,7 +15,8 @@ export class Bomber extends BaseCharacter {
   
   constructor(scene: Phaser.Scene, player: Player) {
     super(scene, player);
-    this.projectileCalculator = new ProjectileCalculator();
+    // プレイヤーの軌道計算オブジェクトを使用
+    this.projectileCalculator = player.getProjectileCalculator();
   }
   
   getName(): string {
@@ -53,6 +55,66 @@ export class Bomber extends BaseCharacter {
     this.player.setTint(0xff00ff);
   }
   
+  /**
+   * 照準表示を更新するカスタム実装
+   */
+  updateAiming(
+    targetX: number, 
+    targetY: number, 
+    joystickDistance?: number
+  ): { targetPoint: Phaser.Math.Vector2, trajectoryPoints?: Phaser.Math.Vector2[] } {
+    const angle = Math.atan2(targetY - this.player.y, targetX - this.player.x);
+    const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, targetX, targetY);
+    const joyDistance = joystickDistance || Math.min(distance, 100);
+    
+    // 照準表示用のクラスを取得
+    const aiming = this.player.getWeaponAiming();
+    
+    // 爆弾投げの軌道を計算して表示
+    const normalizedDistance = Math.min(joyDistance / 100, 1);
+    const power = 300 + normalizedDistance * 300; // 300-600の範囲で変化
+    
+    // クリアして新たに描画
+    aiming.clear();
+    
+    // 爆弾投げの照準を表示（WeaponAiming.tsのTHROWERタイプと同様の実装）
+    const result = aiming.showAiming(
+      this.player.x, 
+      this.player.y, 
+      angle, 
+      joyDistance,
+      WeaponType.THROWER
+    );
+    
+    return result;
+  }
+  
+  /**
+   * スキル用照準表示を更新するカスタム実装
+   */
+  updateSkillAiming(
+    targetX: number, 
+    targetY: number, 
+    joystickDistance?: number
+  ): { targetPoint: Phaser.Math.Vector2, area?: Phaser.Geom.Circle } {
+    const angle = Math.atan2(targetY - this.player.y, targetX - this.player.x);
+    const joyDistance = joystickDistance || 50;
+    
+    // 照準表示用のクラスを取得
+    const aiming = this.player.getWeaponAiming();
+    
+    // ボムスプレイの照準を表示（WeaponAiming.tsのBOMBスキルタイプを使用）
+    const result = aiming.showSkillAiming(
+      this.player.x, 
+      this.player.y, 
+      angle, 
+      joyDistance,
+      'BOMB'
+    );
+    
+    return result;
+  }
+  
   // 通常攻撃は投石（オーバーライド）
   useAttack(targetX: number, targetY: number): boolean {
     const angle = Math.atan2(targetY - this.player.y, targetX - this.player.x);
@@ -66,37 +128,16 @@ export class Bomber extends BaseCharacter {
       .setTint(0xcccccc)
       .setDepth(4);
     
-    // 放物線を計算してTweenで動かす
+    // 放物線を計算
     const points = this.projectileCalculator.calculateParabolicTrajectory(
       this.player.x, this.player.y, angle, power, 980, 15, airTime
     );
     
-    // Tweenのタイムライン - TweenUtilsを使用
-    const timeline = createSafeTimeline(this.scene, airTime * 1000);
+    // 点の配列を座標オブジェクトとして扱う
+    const path = points.map(p => ({ x: p.x, y: p.y }));
     
-    // 各点をタイムライン上で結ぶ
-    for (let j = 1; j < points.length; j++) {
-      const prevPoint = points[j - 1];
-      const point = points[j];
-      
-      // 2点間の角度を計算（石の向きを調整）
-      const pointAngle = Math.atan2(
-        point.y - prevPoint.y, 
-        point.x - prevPoint.x
-      );
-      
-      timeline.add({
-        targets: stone,
-        x: point.x,
-        y: point.y,
-        rotation: pointAngle,
-        duration: (airTime / points.length) * 1000,
-        ease: 'Linear'
-      });
-    }
-    
-    // 着弾時のコールバック
-    timeline.setCallback('onComplete', () => {
+    // 軌道に沿って移動
+    moveAlongPath(this.scene, stone, path, airTime * 1000, () => {
       // 着弾エフェクト
       this.scene.add.particles(stone.x, stone.y, 'default', {
         speed: 30,
@@ -123,9 +164,6 @@ export class Bomber extends BaseCharacter {
       stone.destroy();
     });
     
-    // アニメーション開始
-    timeline.play();
-    
     // 効果音
     try {
       this.scene.sound.play('sling');
@@ -147,27 +185,13 @@ export class Bomber extends BaseCharacter {
       .setTint(0xff6600)
       .setDepth(4);
     
-    // 放物線を計算してTweenで動かす
+    // 放物線を計算
     const points = this.projectileCalculator.calculateParabolicTrajectory(
       this.player.x, this.player.y, angle, power, 980, 15, airTime
     );
     
-    // Tweenのタイムライン - TweenUtilsを使用
-    const timeline = createSafeTimeline(this.scene, airTime * 1000);
-    
-    // 各点をタイムライン上で結ぶ
-    for (let j = 1; j < points.length; j++) {
-      //const prevPoint = points[j - 1];
-      const point = points[j];
-      
-      timeline.add({
-        targets: bomb,
-        x: point.x,
-        y: point.y,
-        duration: (airTime / points.length) * 1000,
-        ease: 'Linear'
-      });
-    }
+    // 点の配列を座標オブジェクトとして扱う
+    const path = points.map(p => ({ x: p.x, y: p.y }));
     
     // 爆弾回転アニメーション
     this.scene.tweens.add({
@@ -177,15 +201,12 @@ export class Bomber extends BaseCharacter {
       repeat: -1
     });
     
-    // 着弾時のコールバック
-    timeline.setCallback('onComplete', () => {
+    // 軌道に沿って移動
+    moveAlongPath(this.scene, bomb, path, airTime * 1000, () => {
       // 爆発
       this.explode(bomb.x, bomb.y, 60, 80);
       bomb.destroy();
     });
-    
-    // アニメーション開始
-    timeline.play();
     
     // 効果音
     try {

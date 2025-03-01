@@ -17,14 +17,22 @@ export class ProjectileCalculator {
    * @param maxTime 最大時間
    * @returns 放物線の軌道座標配列
    */
-  calculateParabolicTrajectory(startX: number, startY: number, angle: number, power: number, gravity: number = 980, steps: number = 20, maxTime: number = 2): { x: number, y: number }[] {
-    const points: { x: number, y: number }[] = [];
+  calculateParabolicTrajectory(
+    startX: number, 
+    startY: number, 
+    angle: number, 
+    power: number, 
+    gravity: number = 980, 
+    steps: number = 20, 
+    maxTime: number = 2
+  ): Phaser.Math.Vector2[] {
+    const points: Phaser.Math.Vector2[] = [];
     
     for (let i = 0; i <= steps; i++) {
       const t = (i / steps) * maxTime;
       const x = startX + power * Math.cos(angle) * t;
       const y = startY + power * Math.sin(angle) * t + (0.5 * gravity * t * t);
-      points.push({ x, y });
+      points.push(new Phaser.Math.Vector2(x, y));
     }
     
     return points;
@@ -38,13 +46,19 @@ export class ProjectileCalculator {
    * @param distance 距離
    * @returns 始点と終点の座標
    */
-  calculateLinearTrajectory(startX: number, startY: number, angle: number, distance: number): { start: { x: number, y: number }, end: { x: number, y: number } } {
+  calculateLinearTrajectory(
+    startX: number, 
+    startY: number, 
+    angle: number, 
+    distance: number
+  ): { start: Phaser.Math.Vector2, end: Phaser.Math.Vector2, angle: number } {
+    const endX = startX + Math.cos(angle) * distance;
+    const endY = startY + Math.sin(angle) * distance;
+    
     return {
-      start: { x: startX, y: startY },
-      end: { 
-        x: startX + Math.cos(angle) * distance,
-        y: startY + Math.sin(angle) * distance
-      }
+      start: new Phaser.Math.Vector2(startX, startY),
+      end: new Phaser.Math.Vector2(endX, endY),
+      angle: angle
     };
   }
   
@@ -57,27 +71,29 @@ export class ProjectileCalculator {
    * @param spreadAngle 広がり角度（ラジアン）
    * @returns 扇形の頂点座標配列
    */
-  calculateShotgunSpread(startX: number, startY: number, angle: number, distance: number, spreadAngle: number = Math.PI/6): { 
-    center: { x: number, y: number }, 
-    left: { x: number, y: number }, 
-    right: { x: number, y: number }
-  } {
+  calculateShotgunSpread(
+    startX: number, 
+    startY: number, 
+    angle: number, 
+    distance: number, 
+    spreadAngle: number = Math.PI/6
+  ): { center: Phaser.Math.Vector2, left: Phaser.Math.Vector2, right: Phaser.Math.Vector2 } {
     const leftAngle = angle - spreadAngle;
     const rightAngle = angle + spreadAngle;
     
     return {
-      center: { 
-        x: startX + Math.cos(angle) * distance,
-        y: startY + Math.sin(angle) * distance
-      },
-      left: { 
-        x: startX + Math.cos(leftAngle) * distance,
-        y: startY + Math.sin(leftAngle) * distance
-      },
-      right: { 
-        x: startX + Math.cos(rightAngle) * distance,
-        y: startY + Math.sin(rightAngle) * distance
-      }
+      center: new Phaser.Math.Vector2(
+        startX + Math.cos(angle) * distance,
+        startY + Math.sin(angle) * distance
+      ),
+      left: new Phaser.Math.Vector2(
+        startX + Math.cos(leftAngle) * distance,
+        startY + Math.sin(leftAngle) * distance
+      ),
+      right: new Phaser.Math.Vector2(
+        startX + Math.cos(rightAngle) * distance,
+        startY + Math.sin(rightAngle) * distance
+      )
     };
   }
   
@@ -104,52 +120,54 @@ export class ProjectileCalculator {
    * @returns 衝突点の座標（衝突しなかった場合はnull）
    */
   checkRaycastHitWall(
-    _scene: Phaser.Scene, // 未使用パラメータにアンダースコアを追加
+    scene: Phaser.Scene, 
     startX: number, 
     startY: number, 
     endX: number, 
-    endY: number,
-    wallLayer?: Phaser.Tilemaps.TilemapLayer
-  ): { x: number, y: number } | null {
-    if (!wallLayer) return null;
+    endY: number, 
+    wallLayer: Phaser.Tilemaps.TilemapLayer
+  ): Phaser.Math.Vector2 | null {
+    // レイキャストを行う
+    const line = new Phaser.Geom.Line(startX, startY, endX, endY);
+    let hasCollision = false;
+    let hitPoint = null;
     
-    // 線分のタイルとの交差判定
-    //const line = new Phaser.Geom.Line(startX, startY, endX, endY);
-    const tileXY = wallLayer.worldToTileXY(startX, startY);
-    const endTileXY = wallLayer.worldToTileXY(endX, endY);
+    // タイルとの交差判定
+    const tileRay = (wallLayer.tilemapLayer as any).tileRaycast || wallLayer.tilemapLayer.tileRaycast;
     
-    // 線分のステップで移動しながらタイルの衝突をチェック
-    const deltaX = Math.abs(endTileXY.x - tileXY.x);
-    const deltaY = Math.abs(endTileXY.y - tileXY.y);
-    const steps = Math.max(deltaX, deltaY) * 2;
-    
-    if (steps === 0) return null;
-    
-    // dxとdyはLineインターフェースに存在しないので手動で計算
-    const dx = endX - startX;
-    const dy = endY - startY;
-    const stepX = dx / steps;
-    const stepY = dy / steps;
-    
-    // 線分に沿ってチェックポイントを進めながら壁判定
-    for (let i = 1; i <= steps; i++) {
-      const pointX = startX + (stepX * i);
-      const pointY = startY + (stepY * i);
+    if (tileRay) {
+      // Phaser 3.55+
+      const ray = tileRay.call(wallLayer.tilemapLayer, line);
+      if (ray && ray.length > 0) {
+        hasCollision = true;
+        hitPoint = new Phaser.Math.Vector2(ray[0].point.x, ray[0].point.y);
+      }
+    } else {
+      // 互換性のためのフォールバック
+      // タイルマップを線分がカバーする矩形領域でループ
+      const dx = endX - startX;
+      const dy = endY - startY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const directionX = dx / distance;
+      const directionY = dy / distance;
       
-      const tile = wallLayer.getTileAtWorldXY(pointX, pointY);
-      
-      // タイルが存在し、コリジョンがある場合
-      if (tile && tile.collides) {
-        // 衝突点を若干戻して壁のちょうど手前で止まるようにする
-        const backStep = 2; // 2ピクセル手前
-        const collisionX = pointX - (stepX / steps) * backStep;
-        const collisionY = pointY - (stepY / steps) * backStep;
+      // 少しずつ線をたどる
+      const step = 8;
+      for (let i = 0; i <= distance; i += step) {
+        const x = startX + directionX * i;
+        const y = startY + directionY * i;
         
-        return { x: collisionX, y: collisionY };
+        // 対応するタイルをチェック
+        const tile = wallLayer.getTileAtWorldXY(x, y, true);
+        if (tile && tile.collides) {
+          hasCollision = true;
+          hitPoint = new Phaser.Math.Vector2(x, y);
+          break;
+        }
       }
     }
     
-    return null; // 衝突なし
+    return hitPoint;
   }
 
   /**

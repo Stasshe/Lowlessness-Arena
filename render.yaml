@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: lowlessness-arena
+    env: static
+    plan: free
+    buildCommand: npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: true
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache

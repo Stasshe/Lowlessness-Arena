@@ -38,7 +38,7 @@ export class GameConfig {
   
   // 武器関連
   static readonly WEAPON_DEFAULT_DAMAGE: number = 20; // 基本ダメージ
-  static readonly WEAPON_DEFAULT_SPEED: number = 600; // 基本弾速
+  static readonly WEAPON_DEFAULT_SPEED: number = 60; // 基本弾速
   static readonly WEAPON_DEFAULT_RANGE: number = 400; // 基本射程
   static readonly WEAPON_DEFAULT_COOLDOWN: number = 500; // 基本攻撃クールダウン
   static readonly WEAPON_EXPLOSIVE_RADIUS: number = 50; // 爆発範囲基本値

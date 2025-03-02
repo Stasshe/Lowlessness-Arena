@@ -5,6 +5,7 @@ import { WeaponType } from '../utils/WeaponTypes';
 import { CharacterType } from '../characters/CharacterFactory'; // CharacterTypeをインポート
 import { WeaponAiming } from '../utils/WeaponAiming';
 import { ProjectileCalculator } from '../utils/ProjectileCalculator';
+import { Bullet, BulletType } from './Bullet';  // Bullet と BulletType をインポート
 
 // スキルタイプの列挙
 export enum SkillType {
@@ -463,6 +464,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   getUltimateCharge(): number {
     return this.ultimateCharge;
   }
+
+  getSpeed(): number {
+    return this.moveSpeed;
+  }
   
   getState(): PlayerState {
     return this.currentState;
@@ -617,5 +622,79 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
    */
   getWeaponAiming(): WeaponAiming {
     return this.weaponAiming;
+  }
+
+  /**
+   * 非標準の弾を発射するユーティリティメソッド
+   * @param targetX 目標X座標
+   * @param targetY 目標Y座標
+   * @param options 発射オプション
+   */
+  fireSpecialProjectile(
+    targetX: number, 
+    targetY: number, 
+    options: {
+      bulletType?: BulletType;
+      speed?: number;
+      damage?: number;
+      range?: number;
+      scale?: number;
+      color?: number;
+      gravity?: boolean;
+      isParticle?: boolean;
+    } = {}
+  ): Bullet | null {
+    const angle = Math.atan2(targetY - this.y, targetX - this.y);
+    
+    // デフォルト値の設定
+    const opts = {
+      bulletType: options.bulletType || 'normal' as BulletType,
+      speed: options.speed || 400,
+      damage: options.damage || 20,
+      range: options.range || 500,
+      scale: options.scale || 1,
+      color: options.color || 0xffffff,
+      gravity: options.gravity || false,
+      isParticle: options.isParticle || false
+    };
+    
+    // 弾の発射位置を計算（プレイヤーの前方）
+    const offsetDistance = 30;
+    const startX = this.x + Math.cos(angle) * offsetDistance;
+    const startY = this.y + Math.sin(angle) * offsetDistance;
+    
+    // 弾またはパーティクル
+    const projectile = this.weapon.fireSpecial(
+      startX,
+      startY,
+      angle,
+      opts.bulletType,
+      opts.speed,
+      opts.damage,
+      opts.range,
+      opts.gravity
+    ) as Bullet;
+    
+    if (!projectile) return null;
+    
+    // 外観をカスタマイズ
+    if (opts.isParticle) {
+      projectile.setDisplaySize(8, 8);
+      
+      // パーティクルエフェクトを追加
+      this.scene.add.particles(startX, startY, 'default', {
+        follow: projectile,
+        scale: { start: 0.3, end: 0 },
+        speed: 20,
+        lifespan: 300,
+        blendMode: 'ADD',
+        tint: opts.color
+      });
+    } else {
+      projectile.setScale(opts.scale);
+      projectile.setTint(opts.color);
+    }
+    
+    return projectile;
   }
 }

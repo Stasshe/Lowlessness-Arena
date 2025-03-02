@@ -14,6 +14,8 @@ export class VirtualJoystick {
   private pointerDown: boolean = false;
   private activePointer: Phaser.Input.Pointer | null = null;
   private joystickId: string; // ジョイスティックの一意のID
+  private wasActive: boolean = false;
+  private justReleased: boolean = false;
   
   constructor(scene: Phaser.Scene, isSkill: boolean = false, player?: Player) {
     this.scene = scene;
@@ -256,5 +258,25 @@ export class VirtualJoystick {
   // ジョイスティックの種類を取得
   getJoystickId(): string {
     return this.joystickId;
+  }
+
+  update(): void {
+    // 前のフレームでアクティブだったか記憶
+    const wasActiveLastFrame = this.wasActive;
+    
+    // アクティブ状態を更新
+    this.wasActive = this.isActive();
+    
+    // アクティブから非アクティブに変わった瞬間を検知
+    this.justReleased = wasActiveLastFrame && !this.wasActive;
+  }
+  
+  /**
+   * ジョイスティックが離されたかどうかをチェック
+   */
+  wasReleased(): boolean {
+    const released = this.justReleased;
+    this.justReleased = false; // チェックしたらリセット
+    return released;
   }
 }

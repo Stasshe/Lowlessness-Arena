@@ -647,4 +647,49 @@ export class WeaponAiming {
       area: new Phaser.Geom.Circle(startX, startY, radius)
     };
   }
+
+  /**
+   * 点線の軌道を描画する
+   * @param points 点の配列
+   * @param color 線の色
+   * @param alpha 透明度
+   * @param dotSize ドットのサイズ
+   */
+  drawDottedLine(
+    points: Phaser.Math.Vector2[], 
+    color: number = 0xffffff,
+    alpha: number = 0.7,
+    dotSize: number = 3
+  ): void {
+    if (points.length < 2) return;
+    
+    // 点ごとに円を描画
+    for (let i = 0; i < points.length; i += 2) { // 2点おきに描画して点線に
+      const point = points[i];
+      this.graphics.fillStyle(color, alpha);
+      this.graphics.fillCircle(point.x, point.y, dotSize);
+    }
+  }
+  
+  /**
+   * 円を描画する
+   * @param x 中心X
+   * @param y 中心Y
+   * @param radius 半径
+   * @param color 色
+   * @param alpha 透明度
+   */
+  drawCircle(
+    x: number, 
+    y: number, 
+    radius: number, 
+    color: number = 0xffffff,
+    alpha: number = 0.5
+  ): void {
+    this.graphics.lineStyle(2, color, alpha);
+    this.graphics.strokeCircle(x, y, radius);
+    
+    this.graphics.fillStyle(color, alpha * 0.3);
+    this.graphics.fillCircle(x, y, radius);
+  }
 }

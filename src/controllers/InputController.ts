@@ -164,18 +164,27 @@ export class InputController {
     
     // スキルジョイスティックの処理
     if (this.skillJoystick) {
-      // ベクトルの長さをチェック
-      const vectorLength = this.skillJoystick.length();
-      
-      // スキルジョイスティックが離された時にスキル発動
-      if (vectorLength > 0.5 && !this.skillJoystick.isBeingUsed(this.scene.input.activePointer)) {
-        const targetPos = this.skillJoystick.getTargetWorldPosition();
-        if (targetPos && this.player.canUseSkill()) {
-          this.player.useSkill(targetPos.x, targetPos.y);
-          
-          // コールバックを呼び出し
-          if (this.onSkillUsed) {
-            this.onSkillUsed(targetPos.x, targetPos.y);
+      // スキルジョイスティックの使用状態をチェック
+      if (this.skillJoystick.wasReleased()) {  // リリースされたかどうかをチェックする新しいメソッド
+        const vectorLength = this.skillJoystick.length();
+        // ある程度の長さがあれば、スキルを発動
+        if (vectorLength > 0.3) {
+          const targetPos = this.skillJoystick.getTargetWorldPosition();
+          if (targetPos && this.player.canUseSkill()) {
+            console.log("スキルジョイスティックがリリースされました: 発動します");
+            
+            // スキル発動
+            this.player.useSkill(targetPos.x, targetPos.y);
+            
+            // 効果音
+            try {
+              this.scene.sound.play('skill_activate');
+            } catch (e) {}
+            
+            // コールバックを呼び出し
+            if (this.onSkillUsed) {
+              this.onSkillUsed(targetPos.x, targetPos.y);
+            }
           }
         }
       }

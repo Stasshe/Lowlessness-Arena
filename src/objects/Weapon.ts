@@ -191,6 +191,56 @@ export class Weapon {
   }
 
   /**
+   * 特殊弾を発射する
+   * @param x 発射位置X
+   * @param y 発射位置Y
+   * @param angle 発射角度
+   * @param bulletType 弾の種類
+   * @param speed 速度
+   * @param damage ダメージ量
+   * @param range 射程
+   * @param gravity 重力の影響を受けるか
+   * @returns 作成された弾
+   */
+  fireSpecial(
+    x: number,
+    y: number,
+    angle: number,
+    bulletType: BulletType = 'normal',
+    speed: number = this.bulletSpeed,
+    damage: number = this.bulletDamage,
+    range: number = this.bulletRange,
+    affectedByGravity: boolean = false
+  ): Bullet | null {
+    // 弾を取得
+    const bullet = this.bullets.get(x, y) as Bullet;
+    if (!bullet) {
+      console.warn('特殊弾の生成に失敗しました');
+      return null;
+    }
+    
+    // 所有者を設定
+    bullet.setOwner(this.owner);
+    
+    // 弾を発射
+    bullet.fire(
+      x, 
+      y, 
+      angle, 
+      speed, 
+      damage, 
+      range * this.rangeMultiplier,
+      bulletType,
+      affectedByGravity
+    );
+    
+    // 所有者を再度設定
+    bullet.setOwner(this.owner);
+    
+    return bullet;
+  }
+
+  /**
    * 武器タイプに応じた弾の種類を取得
    */
   private getBulletTypeFromWeapon(): BulletType {  // 型をBulletTypeに変更

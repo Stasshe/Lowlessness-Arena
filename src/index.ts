@@ -34,9 +34,9 @@ const config: Phaser.Types.Core.GameConfig = {
     }
   },
   render: {
-    pixelArt: false,
-    antialias: true,
-    antialiasGL: true
+    pixelArt: true,
+    antialias: false,
+    antialiasGL: false
   },
   scene: [
     LoadingScene,

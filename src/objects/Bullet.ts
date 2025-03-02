@@ -60,13 +60,13 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     bulletType: BulletType = 'normal',
     affectedByGravity: boolean = false
   ): void {
-    // リセット前に現在の所有者を一時保存
+    // 所有者情報を一時保存
     const currentOwner = this._owner;
     
-    // 状態をリセットして初期化
+    // 状態をリセットして初期化（所有者情報はリセットされない）
     this.reset(x, y);
     
-    // 所有者を再設定（リセット後に必要）
+    // 所有者を再設定（明示的に設定して問題を解決）
     this._owner = currentOwner;
     
     // 有効化と表示
@@ -132,7 +132,7 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     // 弾ごとの特殊動作
     this.setupSpecialBehavior();
     
-    console.log(`弾発射: owner=${this._owner?.name || 'unknown'}, type=${bulletType}, angle=${angle}, speed=${speed}, pos=(${x},${y})`);
+    console.log(`弾発射: owner=${this._owner?.name || 'unknown'}, type=${bulletType}, angle=${angle}, speed=${speed}, pos=(${x},${y}), ownerId=${this.getData('ownerID')}`);
   }
   
   /**
@@ -284,9 +284,13 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     // すでに非アクティブならスキップ
     if (!this.active) return;
     
-    // 所有者と同じなら何もしない
+    // 所有者と同じなら何もしない（衝突判定を厳格化）
     if (this.isSameOwner(target)) {
-      console.log("弾が所有者と衝突: 無視します");
+      console.log("弾が所有者と衝突: 無視します", 
+        this.getData('ownerID'), 
+        target.getData ? target.getData('id') : 'no-id',
+        "所有者名:", this._owner?.name || 'unknown'
+      );
       return;
     }
     
@@ -407,10 +411,6 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     this.lifespan = duration;
     this.spawnTime = this.scene.time.now;
     
-    // 弧を描くオブジェクトの場合は物理ボディを無効化
-    this.disableBody(true, false);
-  }
-  
   /**
    * 爆発設定
    * @param isExplosive 爆発するかどうか
@@ -463,14 +463,25 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
   setOwner(owner: any): void {
     this._owner = owner;
     
-    // 親子関係を設定し、物理衝突を回避
-    if (owner && owner.body && this.body) {
-      // 衝突グループを設定（データ属性を使用）
+    // 所有者のIDを弾にデータ属性として設定（衝突判定用）
+    if (owner) {
       if (owner.getData && typeof owner.getData === 'function') {
         const ownerId = owner.getData('id');
         if (ownerId) {
           this.setData('ownerID', ownerId);
+          console.log(`弾の所有者IDを設定: ${ownerId}`);
+        } else {
+          // 所有者にIDがない場合は生成して設定
+          const newId = `player_${Date.now()}`;
+          owner.setData('id', newId);
+          this.setData('ownerID', newId);
+          console.log(`新しい弾の所有者IDを生成して設定: ${newId}`);
         }
+      } else {
+        // getData がない場合は独自のID生成
+        const bulletOwnerId = `bullet_owner_${Date.now()}`;
+        this.setData('ownerID', bulletOwnerId);
+        console.log(`弾専用の所有者IDを設定: ${bulletOwnerId}`);
       }
     }
   }
@@ -581,27 +592,20 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     }
     
     // IDによる比較
-    if (this._owner.getData && target.getData &&
-        typeof this._owner.getData === 'function' && 
-        typeof target.getData === 'function') {
-      
-      const ownerId = this._owner.getData('id');
-      const targetId = target.getData('id');
-      
-      if (ownerId && targetId && ownerId === targetId) {
-        return true;
-      }
+    const ownerId = this.getData('ownerID');
+    let targetId = null;
+    
+    if (target.getData && typeof target.getData === 'function') {
+      targetId = target.getData('id');
     }
     
-    // GameObjectのデータ属性でチェック
-    if (this.getData && typeof this.getData === 'function') {
-      const ownerID = this.getData('ownerID');
-      if (target.getData && typeof target.getData === 'function') {
-        const targetId = target.getData('id');
-        if (ownerID && targetId && ownerID === targetId) {
-          return true;
-        }
-      }
+    if (ownerId && targetId && ownerId === targetId) {
+      return true;
+    }
+    
+    // このクラスやプレイヤーのファイルから得られる他の情報を使って比較
+    if (this._owner.id && target.id && this._owner.id === target.id) {
+      return true;
     }
     
     return false;
@@ -646,6 +650,7 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     this.spawnTime = this.scene.time.now;
     this.lifespan = 2000;
     
-    // NOTE: ownerは保持します（fire()でリセット後に再設定されるため）
+    // 注意: 所有者情報は意図的にリセットしません
+    // this._owner は保持されます
   }
 }

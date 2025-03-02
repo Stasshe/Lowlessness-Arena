@@ -71,6 +71,10 @@ export class GameManager {
   createPlayer(characterType: CharacterType, x: number, y: number): void {
     this.player = this.characterFactory.createCharacter(characterType, x, y);
     
+    // プレイヤーにIDを設定（弾の衝突判定用）
+    this.player.setData('id', `player_${Date.now()}`);
+    console.log("プレイヤーIDを設定:", this.player.getData('id'));
+    
     // キャラクターハンドラーを初期化
     this.characterHandler = new CharacterHandler(this.scene, this.player);
     
@@ -442,14 +446,24 @@ export class GameManager {
     // プレイヤーの弾と壁の衝突
     const playerBullets = this.player.getWeapon()?.getBullets();
     if (playerBullets) {
+      // 各弾に所有者情報を設定
+      playerBullets.getChildren().forEach((bullet: any) => {
+        if (bullet && bullet.setOwner) {
+          bullet.setOwner(this.player);
+        }
+      });
+      
       this.scene.physics.add.collider(
         playerBullets,
         this.map.getWalls(),
-        (bullet: any, _wall: any) => {
+        (bullet: any, wall: any) => {
           if (bullet.onHit) {
-            bullet.onHit();
+            // 壁との衝突時の処理
+            bullet.onHit(wall);
           }
-        }
+        },
+        undefined,
+        this
       );
       
       // 弾と他プレイヤーの衝突
@@ -458,13 +472,19 @@ export class GameManager {
           playerBullets,
           otherPlayer,
           (bullet: any, player: any) => {
-            if (bullet.onHit && player.takeDamage) {
-              const damage = bullet.getDamage();
-              player.takeDamage(damage);
-              bullet.onHit();
-              this.gameEffects.showHitEffect(player.x, player.y, damage);
+            if (bullet.canDamage && bullet.canDamage(player)) {
+              if (bullet.onHit && player.takeDamage) {
+                const damage = bullet.getDamage();
+                player.takeDamage(damage);
+                bullet.onHit(player);
+                this.gameEffects.showHitEffect(player.x, player.y, damage);
+              }
+            } else {
+              console.log("弾がプレイヤーと衝突したが、ダメージを与えられません");
             }
-          }
+          },
+          undefined,
+          this
         );
       });
     }

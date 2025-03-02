@@ -198,6 +198,9 @@ export class Bomber extends BaseCharacter {
     );
     
     if (stone) {
+      // 所有者を明示的に設定
+      stone.setOwner(this.player);
+      
       // 外観をカスタマイズ
       stone.setDisplaySize(8, 8);
       stone.setTint(0xcccccc);
@@ -227,8 +230,12 @@ export class Bomber extends BaseCharacter {
     const offsetX = this.player.x + Math.cos(angle) * 20;
     const offsetY = this.player.y + Math.sin(angle) * 20;
     
+    // ID が設定されていなければ設定
+    if (!this.player.getData('id')) {
+      this.player.setData('id', `player_${Date.now()}`);
+    }
+    
     // 武器のfireSpecialメソッドを使用して物理弾を発射
-    // これにより既存の衝突判定などが活用される
     const bomb = this.player.getWeapon().fireSpecial(
       offsetX,
       offsetY,
@@ -241,6 +248,9 @@ export class Bomber extends BaseCharacter {
     );
     
     if (bomb) {
+      // 所有者を明示的に設定（自己衝突を防ぐため）
+      bomb.setOwner(this.player);
+      
       // 爆弾の外観をカスタマイズ
       bomb.setScale(1.2);
       bomb.setTint(0xff6600);

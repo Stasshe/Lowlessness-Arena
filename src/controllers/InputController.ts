@@ -22,6 +22,12 @@ export class InputController {
     this.isMobile = !scene.sys.game.device.os.desktop;
     this.gameEffects = new GameEffects(scene);
     
+    // プレイヤーにIDを設定（衝突判定用）
+    if (!player.getData('id')) {
+      player.setData('id', `player_${Date.now()}`);
+      console.log("プレイヤーIDを設定:", player.getData('id'));
+    }
+    
     // キーボード入力の設定
     this.cursors = scene.input.keyboard!.createCursorKeys();
     
@@ -52,6 +58,12 @@ export class InputController {
       console.log("スキル実行処理: ターゲット=", targetX, targetY);
       
       try {
+        // プレイヤーにIDが設定されているか確認
+        if (!this.player.getData('id')) {
+          this.player.setData('id', `player_${Date.now()}`);
+          console.log("スキル使用前にプレイヤーIDを設定:", this.player.getData('id'));
+        }
+        
         // デバッグ用の視覚的フィードバック
         this.scene.add.circle(targetX, targetY, 20, 0xff0000, 0.5)
           .setDepth(100)
@@ -100,6 +112,11 @@ export class InputController {
       
       // ジョイスティックエリアでなければ攻撃処理
       if (this.isAttackPointer(pointer)) {
+        // プレイヤーにIDが設定されているか確認
+        if (!this.player.getData('id')) {
+          this.player.setData('id', `player_${Date.now()}`);
+        }
+        
         const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
         this.player.attack(worldPoint.x, worldPoint.y);
         
@@ -261,6 +278,11 @@ export class InputController {
   // プレイヤーの参照を更新
   setPlayer(player: Player): void {
     this.player = player;
+    
+    // プレイヤーにIDを設定（衝突判定用）
+    if (!player.getData('id')) {
+      player.setData('id', `player_${Date.now()}`);
+    }
     
     // スキルジョイスティックがあれば更新
     if (this.skillJoystick) {

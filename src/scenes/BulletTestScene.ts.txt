@@ -1,0 +1,123 @@
+import Phaser from 'phaser';
+import { Bullet } from '../objects/Bullet';
+
+export class BulletTestScene extends Phaser.Scene {
+  private testBullets: Phaser.Physics.Arcade.Group;
+  private debugText: Phaser.GameObjects.Text;
+  
+  constructor() {
+    super('bullet-test');
+  }
+  
+  preload() {
+    // 弾のテクスチャをロード
+    this.load.image('bullet', 'assets/images/bullet.png');
+    this.load.image('default', 'assets/images/particle.png');
+  }
+  
+  create() {
+    // 弾のグループを作成
+    this.testBullets = this.physics.add.group({
+      classType: Bullet,
+      runChildUpdate: true,
+      maxSize: 20
+    });
+    
+    // デバッグテキスト
+    this.debugText = this.add.text(10, 10, 'Click to fire bullets', {
+      fontSize: '16px',
+      color: '#ffffff'
+    });
+    
+    // クリックで弾を発射
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.fireBullet(pointer.x, pointer.y);
+    });
+    
+    // スペースキーでランダム発射
+    this.input.keyboard.on('keydown-SPACE', () => {
+      const centerX = this.cameras.main.width / 2;
+      const centerY = this.cameras.main.height / 2;
+      
+      // 円形に8つの弾を発射
+      for (let i = 0; i < 8; i++) {
+        const angle = (Math.PI * 2 / 8) * i;
+        const x = centerX + Math.cos(angle) * 30;
+        const y = centerY + Math.sin(angle) * 30;
+        this.fireBullet(x, y, angle);
+      }
+    });
+    
+    // 画面の説明
+    this.add.text(
+      this.cameras.main.width / 2, 
+      this.cameras.main.height - 50,
+      'クリック: 弾発射 | スペース: 円形発射 | 1-5: 弾タイプ切り替え',
+      { fontSize: '14px', color: '#ffffff' }
+    ).setOrigin(0.5);
+    
+    // 数字キーで弾タイプ切り替え
+    const keyConfig = [
+      { key: 'ONE', type: 'normal' },
+      { key: 'TWO', type: 'explosive' },
+      { key: 'THREE', type: 'sniper' },
+      { key: 'FOUR', type: 'parabolic' },
+      { key: 'FIVE', type: 'bounce' }
+    ];
+    
+    keyConfig.forEach(config => {
+      this.input.keyboard.on(`keydown-${config.key}`, () => {
+        this.debugText.setText(`弾タイプ: ${config.type}`);
+        // グローバル変数に現在の弾タイプを設定
+        (this as any).currentBulletType = config.type;
+      });
+    });
+    
+    // 初期タイプ設定
+    (this as any).currentBulletType = 'normal';
+  }
+  
+  update() {
+    // アクティブな弾の数を表示
+    const activeBullets = this.testBullets.countActive();
+    this.debugText.setText(
+      `弾タイプ: ${(this as any).currentBulletType} | アクティブな弾: ${activeBullets}`
+    );
+  }
+  
+  fireBullet(x: number, y: number, angle?: number) {
+    // カーソル位置から画面中央に向かう角度を計算
+    const centerX = this.cameras.main.width / 2;
+    const centerY = this.cameras.main.height / 2;
+    
+    if (angle === undefined) {
+      angle = Phaser.Math.Angle.Between(centerX, centerY, x, y);
+    }
+    
+    // 弾を作成
+    const bullet = this.testBullets.get(centerX, centerY) as Bullet;
+    if (!bullet) return;
+    
+    // 重力の影響（放物線弾の場合のみ）
+    const affectedByGravity = (this as any).currentBulletType === 'parabolic';
+    
+    // 弾を発射
+    bullet.fire(
+      centerX,
+      centerY,
+      angle,
+      400, // 速度
+      10,  // ダメージ
+      500, // 射程
+      (this as any).currentBulletType,
+      affectedByGravity
+    );
+    
+    // 発射ログ
+    console.log(`弾発射: タイプ=${(this as any).currentBulletType}, 角度=${angle}`);
+    if (bullet.body) {
+      const body = bullet.body as Phaser.Physics.Arcade.Body;
+      console.log(`速度: vx=${body.velocity.x}, vy=${body.velocity.y}`);
+    }
+  }
+}

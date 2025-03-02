@@ -60,6 +60,16 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     bulletType: BulletType = 'normal',
     affectedByGravity: boolean = false
   ): void {
+    // リセット前に現在の所有者を一時保存
+    const currentOwner = this._owner;
+    
+    // 状態をリセットして初期化
+    this.reset(x, y);
+    
+    // 所有者を再設定（リセット後に必要）
+    this._owner = currentOwner;
+    
+    // 有効化と表示
     this.setActive(true);
     this.setVisible(true);
     
@@ -72,7 +82,7 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
       return;
     }
     
-    // 位置と回転を設定
+    // 位置を明示的に設定
     this.setPosition(x, y);
     this.setRotation(angle);
     
@@ -80,26 +90,49 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     this.initialX = x;
     this.initialY = y;
     
-    // 弾の外観設定
-    this.setupBulletAppearance();
-    
     // 物理パラメータを設定
     this.bulletSpeed = speed;
     this.bulletDamage = damage;
     this.maxDistance = maxDistance;
+    this.damage = damage;  // ダメージ値も更新
+    this.spawnTime = this.scene.time.now;
+    
+    // 弾の外観設定
+    this.setupBulletAppearance();
+    
+    // 各種フラグをリセット
+    this.penetration = false;
+    this.isExplosive = false;
+    this.isArcProjectile = false;
+    
+    // 物理ボディを有効化（最初に一度無効にして再度有効化することで問題を回避）
+    this.disableBody(false, false);
+    this.enableBody(true, x, y, true, true);
     
     // 速度ベクトルを設定
     const vx = Math.cos(angle) * speed;
     const vy = Math.sin(angle) * speed;
     this.setVelocity(vx, vy);
     
-    // 重力の影響を設定
-    if (this.body && affectedByGravity) {
-      (this.body as Phaser.Physics.Arcade.Body).setGravityY(300);
+    // 物理ボディのパラメータを設定
+    if (this.body) {
+      const body = this.body as Phaser.Physics.Arcade.Body;
+      
+      // 重力の影響を設定
+      body.setAllowGravity(affectedByGravity);
+      
+      // デバッグ表示を有効（問題がある場合確認用）
+      body.debugShowBody = this.scene.game.config.physics.arcade?.debug || false;
+      body.debugShowVelocity = this.scene.game.config.physics.arcade?.debug || false;
+      
+      // 自分自身と所有者の衝突を無効に
+      body.checkCollision.none = false;
     }
     
     // 弾ごとの特殊動作
     this.setupSpecialBehavior();
+    
+    console.log(`弾発射: owner=${this._owner?.name || 'unknown'}, type=${bulletType}, angle=${angle}, speed=${speed}, pos=(${x},${y})`);
   }
   
   /**
@@ -121,14 +154,19 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     this.setScale(0.4);
     this.setTint(0x88ff88);
     
-    // 速度ベクトルを設定
+    // 物理ボディを有効化
+    this.enableBody(true, x, y, true, true);
+    
+    // 速度ベクトルを設定（上向きにも力を加える）
     const vx = Math.cos(angle) * speed;
-    const vy = Math.sin(angle) * speed;
+    const vy = Math.sin(angle) * speed - 200; // 上向きの初速を加える
     this.setVelocity(vx, vy);
     
-    // 重力の影響を受ける
+    // 重力を有効化
     if (this.body) {
-      (this.body as Phaser.Physics.Arcade.Body).setGravityY(300);
+      const body = this.body as Phaser.Physics.Arcade.Body;
+      body.setAllowGravity(true);
+      body.setGravityY(600); // 放物線用に重力を設定
     }
   }
   
@@ -155,7 +193,20 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
   /**
    * 更新処理
    */
-  update(time: number, delta: number): void {
+  update(time: number, _delta: number): void {  // 未使用パラメータにアンダースコア追加
+    // すでに非アクティブであれば何もしない
+    if (!this.active) return;
+
+    // 弾が画面外に出たかどうかをチェック
+    const outOfBounds = this.x < -100 || this.x > (this.scene.game.config.width as number) + 100 ||
+                       this.y < -100 || this.y > (this.scene.game.config.height as number) + 100;
+
+    // 画面外に出たら非アクティブにする
+    if (outOfBounds) {
+      this.deactivate();
+      return;
+    }
+    
     // 飛距離が最大値を超えたら破棄
     const distanceTraveled = Phaser.Math.Distance.Between(
       this.initialX, this.initialY, this.x, this.y
@@ -167,14 +218,30 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
         this.explode();
       }
       
-      this.setActive(false);
-      this.setVisible(false);
+      this.deactivate();
+      return;
     }
 
     // 寿命が過ぎたら非アクティブに
     if (time > this.spawnTime + this.lifespan) {
       this.deactivate();
       return;
+    }
+
+    // 物理ボディがある場合は速度をチェック
+    if (this.body && this.body.velocity && (this.body instanceof Phaser.Physics.Arcade.Body)) {
+      const body = this.body as Phaser.Physics.Arcade.Body;
+      
+      // 速度が極端に遅くなったら（ほぼ停止したら）弾を消滅させる
+      // ただし放物線弾は除く（重力の影響で遅くなることがあるため）
+      const minSpeed = 50;
+      const currentSpeed = Math.sqrt(body.velocity.x * body.velocity.x + body.velocity.y * body.velocity.y);
+      
+      if (currentSpeed < minSpeed && this.bulletType !== 'parabolic' && !body.blocked.none) {
+        console.log('弾が減速しすぎたため消滅:', currentSpeed);
+        this.deactivate();
+        return;
+      }
     }
 
     // 弧を描く投射物の場合は位置を計算
@@ -214,23 +281,25 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
    * 弾が何かに当たった時の処理
    */
   onHit(target: any): void {
+    // すでに非アクティブならスキップ
+    if (!this.active) return;
+    
+    // 所有者と同じなら何もしない
+    if (this.isSameOwner(target)) {
+      console.log("弾が所有者と衝突: 無視します");
+      return;
+    }
+    
+    console.log('弾が衝突:', this.bulletType, target);
+    
     // 爆発弾の場合は爆発エフェクト
-    if (this.bulletType === 'explosive') {
+    if (this.bulletType === 'explosive' || this.isExplosive) {
       this.explode();
     }
     
-    // 弾を非アクティブに
-    this.setActive(false);
-    this.setVisible(false);
-
     // 貫通でなければ非アクティブに
     if (!this.penetration) {
       this.deactivate();
-    }
-    
-    // 爆発する弾なら爆発処理
-    if (this.isExplosive) {
-      this.explode();
     }
   }
   
@@ -364,9 +433,14 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
    * 弾を非アクティブ化
    */
   deactivate(): void {
+    if (!this.active) return; // すでに非アクティブならスキップ
+    
     this.setActive(false);
     this.setVisible(false);
     this.disableBody(true, true);
+    
+    // ログ出力（デバッグ用）
+    console.log('弾を非アクティブ化:', this.bulletType, this.x, this.y);
   }
   
   /**
@@ -388,6 +462,17 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
    */
   setOwner(owner: any): void {
     this._owner = owner;
+    
+    // 親子関係を設定し、物理衝突を回避
+    if (owner && owner.body && this.body) {
+      // 衝突グループを設定（データ属性を使用）
+      if (owner.getData && typeof owner.getData === 'function') {
+        const ownerId = owner.getData('id');
+        if (ownerId) {
+          this.setData('ownerID', ownerId);
+        }
+      }
+    }
   }
   
   /**
@@ -440,10 +525,27 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     if (this.body) {
       const body = this.body as Phaser.Physics.Arcade.Body;
       
+      // 弾の衝突バウンド範囲を設定
+      body.setSize(this.width * 0.8, this.height * 0.8, true);
+      body.onWorldBounds = true; // ワールド境界での衝突を検出
+      
+      // 弾が壁に当たった時の処理を設定
+      body.world.on('worldbounds', (hitBody: Phaser.Physics.Arcade.Body) => {
+        if (hitBody.gameObject === this) {
+          if (this.bulletType === 'bounce') {
+            // バウンド弾はそのまま
+          } else {
+            // その他の弾は消滅
+            this.deactivate();
+          }
+        }
+      }, this);
+      
       switch (this.bulletType) {
         case 'bounce':
           // バウンドする弾
           body.setBounce(0.6);
+          body.setCollideWorldBounds(true);
           break;
         case 'sniper':
           // 貫通弾
@@ -453,7 +555,97 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
           // 爆発する弾
           this.setExplosive(true, 40);
           break;
+        case 'parabolic':
+          // 放物線弾（重力の影響を受ける）
+          body.setAllowGravity(true);
+          body.setGravityY(600);
+          break;
       }
     }
+  }
+
+  /**
+   * 所有者と対象が同じかどうか判定
+   * @param target 衝突対象
+   * @returns 所有者と同じならtrue
+   */
+  isSameOwner(target: any): boolean {
+    // 所有者が設定されていない場合はfalse
+    if (!this._owner) {
+      return false;
+    }
+    
+    // 対象が所有者と同じかチェック（参照比較）
+    if (this._owner === target) {
+      return true;
+    }
+    
+    // IDによる比較
+    if (this._owner.getData && target.getData &&
+        typeof this._owner.getData === 'function' && 
+        typeof target.getData === 'function') {
+      
+      const ownerId = this._owner.getData('id');
+      const targetId = target.getData('id');
+      
+      if (ownerId && targetId && ownerId === targetId) {
+        return true;
+      }
+    }
+    
+    // GameObjectのデータ属性でチェック
+    if (this.getData && typeof this.getData === 'function') {
+      const ownerID = this.getData('ownerID');
+      if (target.getData && typeof target.getData === 'function') {
+        const targetId = target.getData('id');
+        if (ownerID && targetId && ownerID === targetId) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * この弾が指定したターゲットにダメージを与えられるかを判定
+   * @param target ダメージを与える対象
+   * @returns ダメージ可能ならtrue、所有者自身などの場合はfalse
+   */
+  canDamage(target: any): boolean {
+    // 所有者と同じ場合はダメージ不可
+    if (this.isSameOwner(target)) {
+      return false;
+    }
+    
+    // アクティブでない弾はダメージを与えない
+    if (!this.active) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  /**
+   * 状態をリセット
+   */
+  reset(x: number, y: number): void {
+    // 位置をリセット
+    this.setPosition(x, y);
+    
+    // 速度をゼロに
+    this.setVelocity(0, 0);
+    
+    // フラグをリセット
+    this.penetration = false;
+    this.isExplosive = false;
+    this.isArcProjectile = false;
+    this.explosionRadius = 0;
+    
+    // 時間をリセット
+    this.spawnTime = this.scene.time.now;
+    this.lifespan = 2000;
+    
+    // NOTE: ownerは保持します（fire()でリセット後に再設定されるため）
   }
 }

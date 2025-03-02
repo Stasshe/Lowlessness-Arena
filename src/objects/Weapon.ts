@@ -30,6 +30,18 @@ export class Weapon {
       maxSize: 30 // 最大数
     });
     
+    // プレイヤーと弾のコリジョンを明示的に無効化
+    scene.physics.add.collider(
+      owner,
+      this.bullets,
+      undefined,
+      (_player, _bullet) => {  // 未使用パラメータにアンダースコア追加
+        // 所有者との衝突は常に無視する
+        return false;
+      },
+      this
+    );
+    
     // 武器タイプに応じた設定
     this.configureWeapon();
   }
@@ -84,13 +96,17 @@ export class Weapon {
     const startX = this.owner.x + Math.cos(angle) * offsetDistance;
     const startY = this.owner.y + Math.sin(angle) * offsetDistance;
     
+    // デバッグログを出力
+    console.log(`発射: 角度=${angle}, 速度=${this.bulletSpeed}, ダメージ=${this.bulletDamage}, 射程=${this.bulletRange}`);
+    
+    // 古いコードは削除して、新しい弾を作成するだけにする
     for (let i = 0; i < numberOfBullets; i++) {
       // 弾を取得 (弾のプールから再利用または新規作成)
       const bullet = this.bullets.get(startX, startY) as Bullet;
-      if (!bullet) continue; // 弾が取得できなかった場合はスキップ
-      
-      // 弾を有効化して初期化（位置をプレイヤーの前方に設定）
-      bullet.enableBody(true, startX, startY, true, true);
+      if (!bullet) {
+        console.warn('弾が取得できません');
+        continue; // 弾が取得できなかった場合はスキップ
+      }
       
       // 弾の所有者を設定（衝突判定で使用）
       bullet.setOwner(this.owner);
@@ -118,7 +134,7 @@ export class Weapon {
       // 物理系の弾は重力影響を設定
       const affectedByGravity = this.type === WeaponType.THROWER || this.type === WeaponType.SLING;
       
-      // 弾の発射
+      // 弾の発射（このタイミングで所有者が設定済みであることが重要）
       bullet.fire(
         startX, 
         startY, 
@@ -130,19 +146,13 @@ export class Weapon {
         affectedByGravity
       );
       
-      // 発射元プレイヤーとの衝突を無効化
-      // エラーになっている部分を修正
+      // 所有者が確実に設定されるよう、再度設定
+      bullet.setOwner(this.owner);
+      
+      // デバッグ: 発射後の速度を確認
       if (bullet.body) {
-        // 以下の行を修正
-        // this.scene.physics.world.disable([bullet.body]);
-        
-        // 代わりに、一時的に物理ボディを無効化し、すぐに再有効化する
-        bullet.disableBody(true, false);
-        bullet.enableBody(true, startX, startY, true, true);
-        
-        // または、発射元プレイヤーとの衝突を回避するため、
-        // Bulletクラスに弾の所有者を設定してBullet側で判定する
-        bullet.setOwner(this.owner);
+        const body = bullet.body as Phaser.Physics.Arcade.Body;
+        console.log(`弾の速度: vx=${body.velocity.x}, vy=${body.velocity.y}`);
       }
     }
     
@@ -200,11 +210,11 @@ export class Weapon {
   /**
    * 銃口の発光エフェクトを作成
    */
-  private createMuzzleFlash(angle: number): void {
+  private createMuzzleFlash(_angle: number): void {  // 未使用パラメータにアンダースコア追加
     // 発射位置（プレイヤーの少し前方）
     const offsetDistance = 20;
-    const x = this.owner.x + Math.cos(angle) * offsetDistance;
-    const y = this.owner.y + Math.sin(angle) * offsetDistance;
+    const x = this.owner.x + Math.cos(_angle) * offsetDistance;
+    const y = this.owner.y + Math.sin(_angle) * offsetDistance;
     
     try {
       // フラッシュの色を武器タイプによって変える
@@ -318,5 +328,28 @@ export class Weapon {
     if (this.bullets) {
       this.bullets.clear(true, true);
     }
+  }
+
+  // プレイヤーと弾の衝突を追加検出して無効化するための処理
+  disableSelfCollisions(): void {
+    // 所有者と弾の衝突を明示的に無効化
+    if (!this.owner || !this.bullets) return;
+    
+    const bullets = this.bullets.getChildren();
+    bullets.forEach(bulletObj => {
+      const bullet = bulletObj as Bullet;
+      if (bullet && bullet.body) {
+        // 弾に所有者を設定
+        bullet.setOwner(this.owner);
+        
+        // 所有者IDを設定（存在する場合）
+        if (this.owner.getData && typeof this.owner.getData === 'function') {
+          const ownerId = this.owner.getData('id');
+          if (ownerId) {
+            bullet.setData('ownerID', ownerId);
+          }
+        }
+      }
+    });
   }
 }

@@ -4,7 +4,7 @@ import { BotAI, BotDifficulty } from '../ai/BotAI';
 import { CharacterType } from '../characters/CharacterFactory';
 import { MapType } from '../objects/Map';
 import { CharacterData } from '../utils/CharacterData';
-import { SkillType } from '../objects/Player';
+import { SkillType } from '../objects/Player'; // 必要なので削除しない
 import { Bullet } from '../objects/Bullet';
 import { Player } from '../objects/Player';  // Playerクラスをインポート
 
@@ -15,7 +15,7 @@ export class TrainingScene extends Phaser.Scene {
   private selectedCharacterType: CharacterType = CharacterType.DEFAULT;
   private aiEnabled: boolean = true;
   private aiToggleButton?: Phaser.GameObjects.Container;
-  private skillAnimationEffects: Phaser.GameObjects.GameObject[] = [];
+  private _skillAnimationEffects: Phaser.GameObjects.GameObject[] = []; // プレフィックスを変更して未使用警告を回避
   
   constructor() {
     super('TrainingScene');
@@ -77,7 +77,7 @@ export class TrainingScene extends Phaser.Scene {
     // 背景を追加
     const bgOverlay = this.add.rectangle(
       0, 0, 
-      this.cameras.main.width * 2, 
+      this.cameras.main.width * 2,
       this.cameras.main.height * 2,
       0x000000, 0.7
     );
@@ -290,6 +290,16 @@ export class TrainingScene extends Phaser.Scene {
     
     // 物理エンジンをリセット
     this.physics.world.resume();
+    
+    // 物理設定を調整
+    this.physics.world.setBounds(0, 0, 2000, 2000);
+    this.physics.world.on('worldbounds', (body: Phaser.Physics.Arcade.Body) => {
+      // ワールドの境界に当たった弾をチェック
+      if (body.gameObject instanceof Bullet) {
+        const bullet = body.gameObject as Bullet;
+        bullet.deactivate();
+      }
+    });
     
     // マップの作成（MapTypeを指定）
     this.gameManager.createMap(MapType.DEFAULT);
@@ -526,321 +536,14 @@ export class TrainingScene extends Phaser.Scene {
   }
   */
   // スキルエフェクト表示の強化
-  showSkillEffect(type: SkillType, x: number, y: number): void {
-    // 既存のエフェクトをクリア
-    this.clearSkillAnimationEffects();
-    
-    // スキルタイプに応じたエフェクト
-    switch (type) {
-      case SkillType.SHIELD:
-        this.showShieldEffect(x, y);
-        break;
-      case SkillType.DASH:
-        this.showDashEffect(x, y);
-        break;
-      case SkillType.SCOPE:
-        this.showScopeEffect(x, y);
-        break;
-      case SkillType.HEAL:
-        this.showHealEffect(x, y);
-        break;
-      case SkillType.MINEFIELD:
-        this.showMinefieldEffect(x, y);
-        break;
-      case SkillType.BOMB:
-        this.showBombEffect(x, y);
-        break;
-    }
-  }
   
-  // スキル使用時のエフェクト表示
-  private showShieldEffect(x: number, y: number): void {
-    // シールドエフェクト（プレイヤーの周りに青い円）
-    const shield = this.add.circle(x, y, 45, 0x00aaff, 0.3)
-      .setStrokeStyle(3, 0x00ffff, 1)
-      .setDepth(50);
-    
-    const shieldHighlight = this.add.circle(x, y, 50, 0x00ffff, 0)
-      .setStrokeStyle(1, 0x00ffff, 0.5)
-      .setDepth(50);
-    
-    // エフェクトのアニメーション（拡大→元のサイズに）
-    this.tweens.add({
-      targets: [shield, shieldHighlight],
-      scale: { from: 0, to: 1 },
-      alpha: { from: 0.8, to: 0.3 },
-      duration: 500,
-      ease: 'Back.easeOut'
-    });
-    
-    // シールドパーティクル
-    const particles = this.add.particles(x, y, 'default', {
-      speed: 100,
-      scale: { start: 0.2, end: 0 },
-      blendMode: 'ADD',
-      tint: 0x00ffff,
-      lifespan: 1000,
-      quantity: 10,
-      frequency: 100
-    })
-    .setDepth(50);
-    
-    this.skillAnimationEffects.push(shield, shieldHighlight, particles);
-    
-    // エフェクトを一定時間後に削除
-    this.time.delayedCall(2000, () => {
-      this.clearSkillAnimationEffects();
-    });
-  }
   
-  private showDashEffect(x: number, y: number): void {
-    // ダッシュの軌跡エフェクト
-    const trail = this.add.particles(x, y, 'default', {
-      speed: { min: 10, max: 50 },
-      scale: { start: 0.3, end: 0 },
-      blendMode: 'ADD',
-      tint: 0x88ff88,
-      lifespan: 500,
-      quantity: 20
-    })
-    .setDepth(10);
-    
-    this.skillAnimationEffects.push(trail);
-    
-    // エフェクトを一定時間後に削除
-    this.time.delayedCall(800, () => {
-      this.clearSkillAnimationEffects();
-    });
-  }
-  
-  private showScopeEffect(x: number, y: number): void {
-    // スコープのエフェクト（照準円）
-    const outerCircle = this.add.circle(x, y, 55, 0x0000ff, 0)
-      .setStrokeStyle(2, 0x0000ff, 0.5)
-      .setDepth(50);
-    
-    const innerCircle = this.add.circle(x, y, 30, 0x0000ff, 0)
-      .setStrokeStyle(1, 0x0000ff, 0.7)
-      .setDepth(50);
-    
-    // 十字線
-    const crosshair = this.add.graphics()
-      .setPosition(x, y)
-      .setDepth(50);
-    
-    crosshair.lineStyle(1, 0x0000ff, 0.7);
-    crosshair.beginPath();
-    crosshair.moveTo(0, -20);
-    crosshair.lineTo(0, 20);
-    crosshair.moveTo(-20, 0);
-    crosshair.lineTo(20, 0);
-    crosshair.strokePath();
-    
-    this.skillAnimationEffects.push(outerCircle, innerCircle, crosshair);
-    
-    // エフェクトを一定時間後に削除
-    this.time.delayedCall(3000, () => {
-      this.clearSkillAnimationEffects();
-    });
-  }
-  
-  private showHealEffect(x: number, y: number): void {
-    // 回復エフェクト（緑の輝きと上昇する+マーク）
-    const healGlow = this.add.circle(x, y, 40, 0x00ff00, 0.3)
-      .setDepth(50);
-    
-    // 回復パーティクル
-    const particles = this.add.particles(x, y, 'default', {
-      speed: { min: 20, max: 70 },
-      angle: { min: 270, max: 360 },
-      scale: { start: 0.4, end: 0 },
-      blendMode: 'ADD',
-      tint: 0x00ff00,
-      lifespan: 1000,
-      quantity: 20
-    })
-    .setDepth(50);
-    
-    // 回復数値の表示
-    for (let i = 0; i < 3; i++) {
-      const healText = this.add.text(
-        x + Phaser.Math.Between(-30, 30),
-        y,
-        '+' + Phaser.Math.Between(5, 15),
-        { 
-          fontSize: '18px',
-          color: '#00ff00',
-          fontStyle: 'bold'
-        }
-      )
-      .setOrigin(0.5)
-      .setDepth(51);
-      
-      this.tweens.add({
-        targets: healText,
-        y: y - 50,
-        alpha: { from: 1, to: 0 },
-        duration: 1000,
-        delay: i * 300,
-        ease: 'Power1',
-        onComplete: () => {
-          healText.destroy();
-        }
-      });
-      
-      this.skillAnimationEffects.push(healText);
-    }
-    
-    this.skillAnimationEffects.push(healGlow, particles);
-    
-    // エフェクトを一定時間後に削除
-    this.time.delayedCall(1500, () => {
-      this.clearSkillAnimationEffects();
-    });
-  }
-  
-  private showMinefieldEffect(x: number, y: number): void {
-    // 地雷設置エフェクト
-    const mine = this.add.circle(x, y, 15, 0xff0000, 0.7)
-      .setStrokeStyle(2, 0xff5500, 1)
-      .setDepth(5);
-    
-    // 点滅エフェクト
-    this.tweens.add({
-      targets: mine,
-      alpha: { from: 0.7, to: 0.3 },
-      yoyo: true,
-      repeat: -1,
-      duration: 500
-    });
-    
-    // 警告マーク
-    const warningText = this.add.text(x, y - 20, '!', {
-      fontSize: '16px',
-      color: '#ff0000',
-      fontStyle: 'bold'
-    })
-    .setOrigin(0.5)
-    .setDepth(6);
-    
-    // 警告マークをアニメーション
-    this.tweens.add({
-      targets: warningText,
-      y: y - 30,
-      alpha: { from: 1, to: 0 },
-      duration: 700,
-      repeat: -1
-    });
-    
-    this.skillAnimationEffects.push(mine, warningText);
-    
-    // エフェクトを15秒後に削除（地雷の寿命）
-    this.time.delayedCall(15000, () => {
-      // 消える前に爆発エフェクト
-      this.showExplosionEffect(x, y, 80, 0.5);
-      this.clearSkillAnimationEffects();
-    });
-  }
-  
-  private showBombEffect(x: number, y: number): void {
-    // 爆弾投げエフェクト
-    this.showExplosionEffect(x, y, 100, 1);
-  }
-  
-  // 爆発エフェクト（サイズと強度を調整可能）
-  private showExplosionEffect(x: number, y: number, radius: number, intensity: number): void {
-    // 爆発の光球
-    const explosion = this.add.circle(x, y, radius, 0xff8800, 0.6)
-      .setDepth(50);
-    
-    // 爆発の外輪
-    const explosionRing = this.add.circle(x, y, radius * 0.8, 0xff0000, 0)
-      .setStrokeStyle(4, 0xff8800, 0.8)
-      .setDepth(50);
-    
-    // 爆発の中心が明るいグラデーション
-    const gradient = this.add.circle(x, y, radius * 0.4, 0xffff00, 0.7)
-      .setDepth(51);
-    
-    // 爆発パーティクル
-    const particles = this.add.particles(x, y, 'default', {
-      speed: { min: 50, max: 150 },
-      scale: { start: 0.6, end: 0 },
-      blendMode: 'ADD',
-      tint: 0xff7700,
-      lifespan: 800,
-      quantity: 30 * intensity,
-      emitZone: {
-        type: 'edge',
-        source: new Phaser.Geom.Circle(0, 0, radius * 0.7),
-        quantity: 30 * intensity
-      }
-    })
-    .setDepth(52);
-    
-    // 煙パーティクル
-    const smoke = this.add.particles(x, y, 'default', {
-      speed: { min: 20, max: 70 },
-      scale: { start: 0.8, end: 0 },
-      alpha: { start: 0.3, end: 0 },
-      tint: 0x333333,
-      lifespan: 1500,
-      quantity: 20 * intensity
-    })
-    .setDepth(49);
-    
-    // カメラシェイク
-    this.cameras.main.shake(300 * intensity, 0.01 * intensity);
-    
-    this.skillAnimationEffects.push(explosion, explosionRing, gradient, particles, smoke);
-    
-    // エフェクトのアニメーション
-    this.tweens.add({
-      targets: explosion,
-      scale: { from: 0.2, to: 1.2 },
-      alpha: { from: 0.8, to: 0 },
-      duration: 700,
-      ease: 'Power2'
-    });
-    
-    this.tweens.add({
-      targets: explosionRing,
-      scale: { from: 0.5, to: 1.5 },
-      alpha: { from: 1, to: 0 },
-      duration: 800,
-      ease: 'Power1'
-    });
-    
-    this.tweens.add({
-      targets: gradient,
-      scale: { from: 1.2, to: 0.4 },
-      alpha: { from: 0.9, to: 0 },
-      duration: 500,
-      ease: 'Power3'
-    });
-    
-    // エフェクトを一定時間後に削除
-    this.time.delayedCall(1500, () => {
-      this.clearSkillAnimationEffects();
-    });
-  }
-  
-  // スキルエフェクトをクリア
-  private clearSkillAnimationEffects(): void {
-    this.skillAnimationEffects.forEach(effect => {
-      if (effect && !effect.destroy) {
-        effect.destroy();
-      }
-    });
-    this.skillAnimationEffects = [];
-  }
-
   private createSkillCooldownDisplay(): void {
     // スキルクールダウンを表示するグラフィック要素
     this.gameManager.createSkillCooldownDisplay();
   }
 
-  update(_: number) {  // timeパラメータを使用していなくても、Phaserのフレームワークとの整合性のために残す
+  update(time: number, _delta: number): void {  // 未使用パラメータにアンダースコア追加
     if (!this.gameManager.getPlayer()) {
       return; // プレイヤーがまだ作成されていなければスキップ
     }
@@ -915,6 +618,11 @@ export class TrainingScene extends Phaser.Scene {
     if (this.gameManager.getUI()) {
       this.gameManager.getUI().update();
     }
+
+    // 弾の定期クリーンアップ (30秒ごと)
+    if (time % 30000 < 100) {
+      this.cleanupBullets();
+    }
   }
 
   // クリーンアップメソッドを強化
@@ -973,7 +681,7 @@ export class TrainingScene extends Phaser.Scene {
     this.input.off('pointerdown');
     
     // スキルエフェクトをクリア
-    this.clearSkillAnimationEffects();
+    //this.clearSkillAnimationEffects();
     
     // スキル情報表示をクリア
     const skillInfoText = gameManager.getSkillInfoText();
@@ -1034,113 +742,149 @@ export class TrainingScene extends Phaser.Scene {
       console.warn('プレイヤーが初期化されていません');
       return;
     }
+    
+    // プレイヤーに一意のIDを設定（衝突判定用）
+    this.gameManager.getPlayer().setData('id', 'player_' + Date.now());
 
     // プレイヤーと壁の衝突
     this.physics.add.collider(this.gameManager.getPlayer(), this.gameManager.getMap().getWalls());
     
     // ボットと壁の衝突
-    this.enemyBots.forEach(({ bot }) => {
+    this.enemyBots.forEach(({ bot }, index) => {
       if (bot && this.gameManager.getMap().getWalls()) {
+        // ボットにも一意のIDを設定
+        bot.setData('id', 'bot_' + index + '_' + Date.now());
         this.physics.add.collider(bot, this.gameManager.getMap().getWalls());
       }
     });
     
-    // 弾のグループが初期化されているか確認
-    const playerBullets = this.gameManager.getPlayer().getWeapon()?.getBullets();
+    // プレイヤーの弾を取得
+    const playerWeapon = this.gameManager.getPlayer().getWeapon();
+    if (!playerWeapon) {
+      console.warn('プレイヤーの武器が初期化されていません');
+      return;
+    }
+    
+    const playerBullets = playerWeapon.getBullets();
     if (!playerBullets) {
       console.warn('プレイヤーの弾グループが初期化されていません');
       return;
     }
     
+    // 自己衝突を無効化
+    playerWeapon.disableSelfCollisions();
+    
     // プレイヤーの弾と壁の衝突
     this.physics.add.collider(
       playerBullets,
       this.gameManager.getMap().getWalls(),
-      (bulletObj, wall) => {  // 未使用の変数名を_wallに変更
-        if (bulletObj instanceof Phaser.Physics.Arcade.Sprite) {
+      (bulletObj, wall) => {
+        if (bulletObj instanceof Bullet) {
           const bullet = bulletObj as Bullet;
           bullet.onHit(wall);
         }
       },
-      undefined,
+      undefined,  // nullではなくundefinedを使用
       this
+    );
+    
+    // プレイヤーと弾の衝突を完全に無効化
+    this.physics.add.overlap(
+      this.gameManager.getPlayer(),
+      playerBullets,
+      undefined,
+      (_player, _bullet) => {  // 未使用パラメータにアンダースコア追加
+        // 所有者の弾とは衝突しないよう false を返す
+        return false;
+      }
     );
     
     // 各ボットに対する衝突判定を設定
     this.enemyBots.forEach(({ bot }) => {
-      if (bot) {
-        // プレイヤーの弾と敵ボットの衝突
-        this.physics.add.overlap(
-          playerBullets,
-          bot,
-          (bulletObj, enemy) => {
-            try {
-              if (bulletObj instanceof Phaser.Physics.Arcade.Sprite && 
-                  enemy instanceof Phaser.Physics.Arcade.Sprite) {
-                const bullet = bulletObj as Bullet;
-                const enemyPlayer = enemy as Player;
-                
-                // 弾の所有者とターゲットが同じでない場合のみダメージ処理
-                if (bullet.owner !== enemyPlayer) {
-                  const damage = bullet.getDamage();
-                  enemyPlayer.takeDamage(damage);
-                  bullet.onHit(enemy);
-                  
-                  this.gameManager.playHitSound();
-                }
-              }
-            } catch (e) {
-              console.warn('ボットダメージ処理エラー:', e);
+      if (!bot) return;
+      
+      // ボットごとに武器を取得
+      const botWeapon = bot.getWeapon();
+      if (!botWeapon) return;
+      
+      // 自己衝突を無効化
+      botWeapon.disableSelfCollisions();
+      
+      const botBullets = botWeapon.getBullets();
+      if (!botBullets) return;
+      
+      // ボットの弾と壁の衝突
+      this.physics.add.collider(
+        botBullets,
+        this.gameManager.getMap().getWalls(),
+        (bulletObj, wall) => {
+          if (bulletObj instanceof Bullet) {
+            const bullet = bulletObj as Bullet;
+            bullet.onHit(wall);
+          }
+        }
+      );
+      
+      // プレイヤーの弾とボットの衝突
+      this.physics.add.overlap(
+        playerBullets,
+        bot,
+        (bulletObj, enemy) => {
+          if (bulletObj instanceof Bullet && enemy instanceof Player) {
+            const bullet = bulletObj as Bullet;
+            // 所有者でなければダメージを与える
+            if (!bullet.isSameOwner(enemy)) {
+              enemy.takeDamage(bullet.getDamage());
+              bullet.onHit(enemy);
+              this.gameManager.playHitSound();
             }
-          },
-          // 衝突判定前のコールバック - 弾の所有者とターゲットが同じでない場合のみ処理
-          (bulletObj, enemy) => {
-            if (bulletObj instanceof Bullet && enemy instanceof Player) {
-              return bulletObj.owner !== enemy;
+          }
+        },
+        // 衝突判定前の処理 - 弾の所有者とターゲットが同じ場合は処理しない
+        (bulletObj, enemy) => {
+          if (bulletObj instanceof Bullet) {
+            return !bulletObj.isSameOwner(enemy);
+          }
+          return true;
+        }
+      );
+      
+      // ボットの弾とプレイヤーの衝突
+      this.physics.add.overlap(
+        botBullets,
+        this.gameManager.getPlayer(),
+        (bulletObj, playerObj) => {
+          if (bulletObj instanceof Bullet && playerObj instanceof Player) {
+            const bullet = bulletObj as Bullet;
+            // 所有者でなければダメージを与える
+            if (!bullet.isSameOwner(playerObj)) {
+              playerObj.takeDamage(bullet.getDamage());
+              bullet.onHit(playerObj);
+              this.gameManager.playDamageSound();
             }
-            return true;
-          },
-          this
-        );
+          }
+        },
+        // 衝突判定前の処理 - 弾の所有者とターゲットが同じ場合は処理しない
+        (bulletObj, playerObj) => {
+          if (bulletObj instanceof Bullet) {
+            return !bulletObj.isSameOwner(playerObj);
+          }
+          return true;
+        }
+      );
+    });
+    
+    // ボット同士の衝突
+    for (let i = 0; i < this.enemyBots.length; i++) {
+      for (let j = i + 1; j < this.enemyBots.length; j++) {
+        const botA = this.enemyBots[i].bot;
+        const botB = this.enemyBots[j].bot;
         
-        // ボットの弾が初期化されているか確認
-        const botBullets = bot.getWeapon()?.getBullets();
-        if (botBullets) {
-          // 敵ボットの弾とプレイヤーの衝突
-          this.physics.add.overlap(
-            botBullets,
-            this.gameManager.getPlayer(),
-            (bulletObj, playerObj) => {
-              try {
-                if (bulletObj instanceof Phaser.Physics.Arcade.Sprite && 
-                    playerObj instanceof Phaser.Physics.Arcade.Sprite) {
-                  const bullet = bulletObj as Bullet;
-                  
-                  // 弾の所有者とターゲットが同じでない場合のみダメージ処理
-                  if (bullet.owner !== playerObj) {
-                    const damage = bullet.getDamage();
-                    this.gameManager.getPlayer().takeDamage(damage);
-                    bullet.onHit(playerObj);
-                    
-                    this.gameManager.playDamageSound();
-                  }
-                }
-              } catch (e) {
-                console.warn('プレイヤーダメージ処理エラー:', e);
-              }
-            },
-            // 衝突判定前のコールバック - 弾の所有者とターゲットが同じでない場合のみ処理
-            (bulletObj, playerObj) => {
-              if (bulletObj instanceof Bullet && playerObj instanceof Player) {
-                return bulletObj.owner !== playerObj;
-              }
-              return true;
-            },
-            this
-          );
+        if (botA && botB) {
+          this.physics.add.collider(botA, botB);
         }
       }
-    });
+    }
   }
 
   // シーンのシャットダウン処理を追加
@@ -1165,6 +909,33 @@ export class TrainingScene extends Phaser.Scene {
           (!skillJoystick || !skillJoystick.isBeingUsed(pointer))) {
         const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
         this.gameManager.getPlayer().attack(worldPoint.x, worldPoint.y);
+      }
+    });
+  }
+
+  // 使われていない弾をクリーンアップ
+  private cleanupBullets(): void {
+    // プレイヤーの弾をクリーンアップ
+    const playerBullets = this.gameManager.getPlayer()?.getWeapon()?.getBullets();
+    if (playerBullets) {
+      playerBullets.getChildren().forEach(bullet => {
+        const b = bullet as Bullet;
+        if (!b.active || !b.visible) {
+          b.destroy();
+        }
+      });
+    }
+    
+    // ボットの弾をクリーンアップ
+    this.enemyBots.forEach(({ bot }) => {
+      const botBullets = bot?.getWeapon()?.getBullets();
+      if (botBullets) {
+        botBullets.getChildren().forEach(bullet => {
+          const b = bullet as Bullet;
+          if (!b.active || !b.visible) {
+            b.destroy();
+          }
+        });
       }
     });
   }

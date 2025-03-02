@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+// createSafeTimeline関数自体が使用されているため、残します
 /**
  * Phaser TweenManagerのcreateTimelineメソッドの互換性問題を解決するヘルパー
  * @param scene Phaserシーン

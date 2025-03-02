@@ -120,7 +120,7 @@ export class ProjectileCalculator {
    * @returns 衝突点の座標（衝突しなかった場合はnull）
    */
   checkRaycastHitWall(
-    scene: Phaser.Scene, 
+    _scene: Phaser.Scene,  // _sceneを使用しないパラメータとしてマークする 
     startX: number, 
     startY: number, 
     endX: number, 
@@ -129,17 +129,17 @@ export class ProjectileCalculator {
   ): Phaser.Math.Vector2 | null {
     // レイキャストを行う
     const line = new Phaser.Geom.Line(startX, startY, endX, endY);
-    let hasCollision = false;
     let hitPoint = null;
     
     // タイルとの交差判定
-    const tileRay = (wallLayer.tilemapLayer as any).tileRaycast || wallLayer.tilemapLayer.tileRaycast;
+    // タイルマップとレイとの交差判定メソッドへのアクセスを修正
+    const tileRaycast = (wallLayer as any).tileRaycast ?? 
+                        (wallLayer as any).tilemapLayer?.tileRaycast;
     
-    if (tileRay) {
+    if (tileRaycast) {
       // Phaser 3.55+
-      const ray = tileRay.call(wallLayer.tilemapLayer, line);
+      const ray = tileRaycast.call(wallLayer, line);
       if (ray && ray.length > 0) {
-        hasCollision = true;
         hitPoint = new Phaser.Math.Vector2(ray[0].point.x, ray[0].point.y);
       }
     } else {
@@ -160,7 +160,6 @@ export class ProjectileCalculator {
         // 対応するタイルをチェック
         const tile = wallLayer.getTileAtWorldXY(x, y, true);
         if (tile && tile.collides) {
-          hasCollision = true;
           hitPoint = new Phaser.Math.Vector2(x, y);
           break;
         }

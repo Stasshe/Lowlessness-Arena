@@ -11,6 +11,8 @@ import { VirtualJoystick } from '../utils/VirtualJoystick';
 import { WeaponAiming } from '../utils/WeaponAiming';
 import { WeaponType } from '../utils/WeaponTypes';
 import { ProjectileCalculator } from '../utils/ProjectileCalculator';
+import { CharacterHandler } from '../characters/CharacterHandler';
+import { CharacterManager } from '../characters/CharacterManager';
 // WeaponTypeは実際に使われている場合はインポートを残す、使われていない場合は削除
 
 /**
@@ -37,6 +39,8 @@ export class GameManager {
   private weaponInfoText?: Phaser.GameObjects.Text;
   private weaponAiming?: WeaponAiming;
   private projectileCalculator!: ProjectileCalculator;
+  private characterHandler?: CharacterHandler;
+  private characterManager?: CharacterManager;
   
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -66,6 +70,15 @@ export class GameManager {
    */
   createPlayer(characterType: CharacterType, x: number, y: number): void {
     this.player = this.characterFactory.createCharacter(characterType, x, y);
+    
+    // キャラクターハンドラーを初期化
+    this.characterHandler = new CharacterHandler(this.scene, this.player);
+    
+    // キャラクターマネージャーも初期化
+    this.characterManager = new CharacterManager(this.scene, this.player);
+    
+    // シーンからアクセスできるようにする（重要）
+    (this.scene as any).characterHandler = this.characterHandler;
   }
   
   // CharacterFactoryのゲッターを追加
@@ -572,6 +585,20 @@ export class GameManager {
    */
   getWeaponAiming(): WeaponAiming | undefined {
     return this.weaponAiming;
+  }
+  
+  /**
+   * キャラクターハンドラーを取得
+   */
+  getCharacterHandler(): CharacterHandler | undefined {
+    return this.characterHandler;
+  }
+  
+  /**
+   * キャラクターマネージャーを取得
+   */
+  getCharacterManager(): CharacterManager | undefined {
+    return this.characterManager;
   }
   
   /**

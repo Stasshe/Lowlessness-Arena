@@ -216,96 +216,118 @@ export class Bomber extends BaseCharacter {
 
   useSkill(targetX: number, targetY: number): void {
     // ボム・スプレイ: 放物線を描く爆弾投げ
+    console.log("Bomber.useSkill呼び出し: 目標位置=", targetX, targetY);
+    
     const angle = Math.atan2(targetY - this.player.y, targetX - this.player.x);
     const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, targetX, targetY);
     const normalizedDistance = Math.min(distance / 300, 1);
     const throwPower = 400 + normalizedDistance * 400;
     
-    console.log("爆弾スキル使用: 目標=", targetX, targetY, "パワー=", throwPower);
+    console.log("爆弾スキル使用: 目標=", targetX, targetY, "距離=", distance, "パワー=", throwPower, "角度=", angle);
     
     // プレイヤーの前方から発射
     const offsetX = this.player.x + Math.cos(angle) * 20;
     const offsetY = this.player.y + Math.sin(angle) * 20;
     
-    // 武器のfireSpecialメソッドを使用して物理弾を発射
-    // これにより既存の衝突判定などが活用される
-    const bomb = this.player.getWeapon().fireSpecial(
-      offsetX,
-      offsetY,
-      angle,
-      'explosive',  // 弾の種類を爆発弾に
-      throwPower,   // 速度
-      70,           // ダメージ
-      1000,         // 射程
-      true          // 重力の影響を受ける
-    );
-    
-    if (bomb) {
-      // 爆弾の外観をカスタマイズ
-      bomb.setScale(1.2);
-      bomb.setTint(0xff6600);
+    try {
+      // 武器のfireSpecialメソッドを使用して物理弾を発射
+      // これにより既存の衝突判定などが活用される
+      const bomb = this.player.getWeapon().fireSpecial(
+        offsetX,
+        offsetY,
+        angle,
+        'explosive',  // 弾の種類を爆発弾に
+        throwPower,   // 速度
+        70,           // ダメージ
+        1000,         // 射程
+        true          // 重力の影響を受ける
+      );
       
-      // 爆発範囲を設定
-      bomb.setExplosive(true, 80);
-      
-      // 回転エフェクト
-      this.scene.tweens.add({
-        targets: bomb,
-        rotation: Math.PI * 4,
-        duration: 1200,
-        ease: 'Linear'
-      });
-      
-      // トレイルエフェクト
-      const trailEmitter = this.scene.add.particles(0, 0, 'default', {
-        follow: bomb,
-        followOffset: { x: 0, y: 0 },
-        lifespan: 300,
-        speed: { min: 10, max: 30 },
-        scale: { start: 0.2, end: 0 },
-        quantity: 1,
-        blendMode: 'ADD',
-        tint: 0xff8800
-      });
-      
-      // 一定時間後に爆発するようにタイマー設定（通常は衝突時に爆発するが、バックアップとして）
-      this.scene.time.delayedCall(2000, () => {
-        if (bomb.active) {
-          // 爆発エフェクトを強化
-          const explosionCircle = this.scene.add.circle(bomb.x, bomb.y, 80, 0xff3300, 0.5)
-            .setStrokeStyle(4, 0xff6600, 1)
-            .setDepth(5);
-          
-          // 爆発パーティクル
-          const particles = this.scene.add.particles(bomb.x, bomb.y, 'default', {
-            speed: { min: 100, max: 300 },
-            scale: { start: 0.5, end: 0 },
-            blendMode: 'ADD',
-            tint: [ 0xff6600, 0xff8800, 0xffaa00 ],
-            lifespan: 800,
-            quantity: 30
-          });
-          
-          // カメラシェイク
-          this.scene.cameras.main.shake(200, 0.02);
-          
-          // 後始末
-          this.scene.time.delayedCall(800, () => {
-            explosionCircle.destroy();
-            particles.destroy();
-          });
-          
-          // エフェクト消去
-          trailEmitter.destroy();
-          bomb.destroy();
-        }
-      });
+      if (bomb) {
+        console.log("爆弾発射成功:", bomb);
+        
+        // 爆弾の外観をカスタマイズ
+        bomb.setScale(1.2);
+        bomb.setTint(0xff6600);
+        
+        // 爆発範囲を設定
+        bomb.setExplosive(true, 80);
+        
+        // 回転エフェクト
+        this.scene.tweens.add({
+          targets: bomb,
+          rotation: Math.PI * 4,
+          duration: 1200,
+          ease: 'Linear'
+        });
+        
+        // トレイルエフェクト
+        const trailEmitter = this.scene.add.particles(0, 0, 'default', {
+          follow: bomb,
+          followOffset: { x: 0, y: 0 },
+          lifespan: 300,
+          speed: { min: 10, max: 30 },
+          scale: { start: 0.2, end: 0 },
+          quantity: 1,
+          blendMode: 'ADD',
+          tint: 0xff8800
+        });
+        
+        // 一定時間後に爆発するようにタイマー設定
+        this.scene.time.delayedCall(2000, () => {
+          if (bomb.active) {
+            console.log("爆弾タイマー爆発:", bomb.x, bomb.y);
+            
+            // 爆発エフェクト
+            const explosionCircle = this.scene.add.circle(bomb.x, bomb.y, 80, 0xff3300, 0.5)
+              .setStrokeStyle(4, 0xff6600, 1)
+              .setDepth(5);
+            
+            // 爆発パーティクル
+            const particles = this.scene.add.particles(bomb.x, bomb.y, 'default', {
+              speed: { min: 100, max: 300 },
+              scale: { start: 0.5, end: 0 },
+              blendMode: 'ADD',
+              tint: [ 0xff6600, 0xff8800, 0xffaa00 ],
+              lifespan: 800,
+              quantity: 30
+            });
+            
+            // カメラシェイク
+            this.scene.cameras.main.shake(200, 0.02);
+            
+            // 後始末
+            this.scene.time.delayedCall(800, () => {
+              explosionCircle.destroy();
+              particles.destroy();
+            });
+            
+            // エフェクト消去
+            trailEmitter.destroy();
+            bomb.destroy();
+          }
+        });
+      } else {
+        console.error("爆弾の作成に失敗しました");
+      }
+    } catch (error) {
+      console.error("爆弾発射中にエラー発生:", error);
     }
     
     // 効果音
     try {
       this.scene.sound.play('bomb_throw');
-    } catch (e) {}
+    } catch (e) {
+      console.warn("効果音再生エラー:", e);
+    }
+    
+    // 視覚的なデバッグ情報
+    this.scene.add.line(
+      0, 0, 
+      this.player.x, this.player.y, 
+      offsetX, offsetY,
+      0xff0000
+    ).setLineWidth(2).setDepth(1000);
   }
   
   useUltimate(): void {

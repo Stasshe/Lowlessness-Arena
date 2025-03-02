@@ -199,8 +199,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     
     // クールダウンチェック
     if (currentTime - this.skillLastUsed < this.skillCooldown) {
+      console.log("スキルクールダウン中:", (currentTime - this.skillLastUsed)/1000, "秒経過 /", this.skillCooldown/1000, "秒中");
       return false;
     }
+    
+    console.log("スキル使用: タイプ=", this.specialAbility, "ターゲット=", targetX, targetY);
     
     // スキル使用時刻を更新
     this.skillLastUsed = currentTime;
@@ -213,8 +216,55 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       targetY = this.y + Math.sin(angle) * distance;
     }
     
-    // スキルの効果を発動
+    // キャラクター処理の検索方法を改善
+    let characterHandler = (this.scene as any).characterHandler;
     
+    // 見つからなければ GameManager 経由で探す
+    if (!characterHandler && (this.scene as any).gameManager) {
+      const gm = (this.scene as any).gameManager;
+      if (gm.getCharacterHandler) {
+        characterHandler = gm.getCharacterHandler();
+      }
+    }
+    
+    // TrainingScene の場合は別の場所を探す
+    if (!characterHandler) {
+      // シーンの各プロパティを探索して characterHandler を見つける
+      for (const key in this.scene) {
+        if ((this.scene as any)[key]?.characterHandler) {
+          characterHandler = (this.scene as any)[key].characterHandler;
+          break;
+        }
+      }
+    }
+    
+    // キャラクターハンドラーが見つかったらスキルを使用
+    if (characterHandler) {
+      try {
+        console.log("キャラクターハンドラー経由でスキル使用");
+        characterHandler.useSkill(targetX, targetY);
+      } catch (error) {
+        console.error("キャラクターのスキル処理でエラー:", error);
+      }
+    } else {
+      console.log("キャラクターハンドラーが見つからないため、直接スキル処理");
+      
+      // Bomber クラスなどのスキル処理を取得して直接実行
+      const characterType = this.getCharacterType();
+      if (characterType === 'BOMBER' && targetX !== undefined && targetY !== undefined) {
+        // シーンから既存の Bomber インスタンスを探す
+        const bomber = this.findCharacterInstance('Bomber');
+        if (bomber && bomber.useSkill) {
+          bomber.useSkill(targetX, targetY);
+        } else {
+          // 見つからない場合はシンプルな弾を発射する
+          this.fireDefaultSkillProjectile(targetX, targetY);
+        }
+      } else {
+        // デフォルトの簡易スキル処理
+        this.fireDefaultSkillProjectile(targetX, targetY);
+      }
+    }
     
     // スキルを使うとアルティメットゲージが少し増える
     this.addUltimateCharge(10);
@@ -227,6 +277,61 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return true;
   }
   
+  // 簡易的なスキル弾発射（キャラクターハンドラーがない場合のフォールバック）
+  private fireDefaultSkillProjectile(targetX: number, targetY: number): void {
+    const angle = Math.atan2(targetY - this.y, targetX - this.x);
+    
+    if (this.weapon) {
+      // 前方に発射
+      const offsetX = this.x + Math.cos(angle) * 30;
+      const offsetY = this.y + Math.sin(angle) * 30;
+      
+      // 特殊弾を発射
+      this.weapon.fireSpecial(
+        offsetX, 
+        offsetY, 
+        angle, 
+        'explosive',
+        600,
+        50,
+        800,
+        false
+      );
+    }
+  }
+  
+  // シーン内のキャラクターインスタンスを名前で探す
+  private findCharacterInstance(className: string): any {
+    // シーン内のゲームオブジェクトを探索
+    for (const key in this.scene) {
+      const obj = (this.scene as any)[key];
+      if (obj && obj.constructor && obj.constructor.name === className) {
+        return obj;
+      }
+      
+      // 配列内も探索
+      if (Array.isArray(obj)) {
+        for (const item of obj) {
+          if (item && item.constructor && item.constructor.name === className) {
+            return item;
+          }
+        }
+      }
+      
+      // オブジェクト内も再帰的に探索
+      if (typeof obj === 'object' && obj !== null) {
+        for (const subKey in obj) {
+          const subObj = obj[subKey];
+          if (subObj && subObj.constructor && subObj.constructor.name === className) {
+            return subObj;
+          }
+        }
+      }
+    }
+    
+    return null;
+  }
+
   useUltimate(): boolean {
     // 死亡状態ではアルティメット使用不可
     if (this.currentState === PlayerState.DEAD) return false;

@@ -101,7 +101,7 @@ export class VirtualJoystick {
     this.scene.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       if (this.pointerDown && this.activePointer && this.activePointer.id === pointer.id) {
         // スキルジョイスティックの場合、離した時にスキルを使用
-        if (this.isSkillJoystick && this.player && this.player.canUseSkill()) {
+        if (this.isSkillJoystick && this.player) {
           const angle = Math.atan2(
             pointer.y - this.base.y,
             pointer.x - this.base.x
@@ -114,13 +114,21 @@ export class VirtualJoystick {
           
           // 最小距離条件（誤操作防止）
           if (distance > 20) {
-            const targetX = this.player.x + Math.cos(angle) * 100;
-            const targetY = this.player.y + Math.sin(angle) * 100;
-            this.player.useSkill(targetX, targetY);
+            // コンソールにデバッグ情報
+            console.log("ジョイスティックリリース: 角度=", angle, "距離=", distance);
             
-            // 照準表示をクリア
-            if (this.weaponAiming) {
-              this.weaponAiming.clear();
+            // ワールド座標を計算
+            const targetPos = this.getTargetWorldPosition();
+            if (targetPos) {
+              console.log("スキル実行準備: ターゲット座標=", targetPos.x, targetPos.y);
+              
+              // 直接 useSkill を呼び出すのではなく、イベントとして通知
+              this.scene.events.emit('joystick-skill', targetPos.x, targetPos.y);
+              
+              // 照準表示をクリア
+              if (this.weaponAiming) {
+                this.weaponAiming.clear();
+              }
             }
           }
         }
@@ -217,14 +225,24 @@ export class VirtualJoystick {
   
   getTargetWorldPosition(): Phaser.Math.Vector2 | null {
     if (!this.player) return null;
-    
+
+    // 角度とベクトル長を計算
     const angle = this.angle();
-    const distance = Math.min(this.length() * 5, 500); // スケーリングして適切な距離に
+    const vecLength = this.length();
     
-    return new Phaser.Math.Vector2(
-      this.player.x + Math.cos(angle) * distance,
-      this.player.y + Math.sin(angle) * distance
-    );
+    // ジョイスティックのベクトル長を正規化して距離にマッピング
+    // 最大半径は50なので、vecLength/50が正規化された値(0-1)になる
+    const normalizedLength = Math.min(vecLength / 50, 1.0);
+    // 投擲距離は300-800の間でマッピング
+    const throwDistance = 300 + normalizedLength * 500;
+    
+    console.log(`ジョイスティック: 角度=${angle}rad, 距離=${throwDistance}px, 正規化長=${normalizedLength}`);
+
+    // プレイヤーの位置から計算した世界座標を返す
+    const targetX = this.player.x + Math.cos(angle) * throwDistance;
+    const targetY = this.player.y + Math.sin(angle) * throwDistance;
+    
+    return new Phaser.Math.Vector2(targetX, targetY);
   }
   
   getAiming(): WeaponAiming | undefined {

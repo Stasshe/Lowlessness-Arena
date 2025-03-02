@@ -8,7 +8,7 @@ import { Tanker } from './individual/Tanker';
 import { Sniper } from './individual/Sniper';
 import { Bomber } from './individual/Bomber';
 import { Healer } from './individual/Healer';
-import { DefaultCharacter } from './individual/DefaultCharacter';
+
 
 /**
  * キャラクターとの連携を管理するクラス
@@ -44,7 +44,7 @@ export class CharacterHandler {
       case CharacterType.HEALER:
         return new Healer(this.scene, this.player);
       default:
-        return new DefaultCharacter(this.scene, this.player);
+        return new Knight(this.scene, this.player);
     }
   }
   

@@ -36,8 +36,51 @@ export class InputController {
     // キーボードスキル入力の設定
     this.setupKeyboardInput();
     
+    // ジョイスティックスキル用のイベントリスナーを設定
+    this.scene.events.on('joystick-skill', (x: number, y: number) => {
+      console.log("joystick-skill イベント受信:", x, y);
+      this.handleSkillUsage(x, y);
+    });
+    
     // 複数タッチを有効化
     this.scene.input.addPointer(2); // デフォルトの1ポインター + 2追加で合計3つのタッチポイントを許可
+  }
+
+  // スキル使用処理を共通化
+  private handleSkillUsage(targetX: number, targetY: number): void {
+    if (this.player && this.player.canUseSkill()) {
+      console.log("スキル実行処理: ターゲット=", targetX, targetY);
+      
+      try {
+        // デバッグ用の視覚的フィードバック
+        this.scene.add.circle(targetX, targetY, 20, 0xff0000, 0.5)
+          .setDepth(100)
+          .setAlpha(0.8);
+        
+        // スキル発動
+        const success = this.player.useSkill(targetX, targetY);
+        console.log("スキル発動結果:", success ? "成功" : "失敗");
+        
+        // エフェクトを表示
+        this.gameEffects.showSkillEffect(this.player.getSkillType(), targetX, targetY);
+        
+        // 効果音
+        try {
+          this.scene.sound.play('skill_activate');
+        } catch (e) {
+          console.warn("効果音エラー:", e);
+        }
+        
+        // コールバックを呼び出し
+        if (this.onSkillUsed) {
+          this.onSkillUsed(targetX, targetY);
+        }
+      } catch (error) {
+        console.error("スキル発動中にエラー:", error);
+      }
+    } else {
+      console.log("スキルが使用できません: クールダウン中 or プレイヤーが無効");
+    }
   }
   
   private createVirtualJoysticks(): void {
@@ -107,22 +150,15 @@ export class InputController {
     return true;
   }
   
+  // キーボードのスペースキー処理も共通関数を使用
   private setupKeyboardInput(): void {
     // スキル使用（スペースキー）
     this.scene.input.keyboard!.on('keydown-SPACE', () => {
-      if (this.player.canUseSkill()) {
-        const targetAngle = this.player.rotation;
-        const targetX = this.player.x + Math.cos(targetAngle) * 200;
-        const targetY = this.player.y + Math.sin(targetAngle) * 200;
-        
-        this.player.useSkill(targetX, targetY);
-        this.gameEffects.showSkillEffect(this.player.getSkillType(), targetX, targetY);
-        
-        // コールバックを呼び出し
-        if (this.onSkillUsed) {
-          this.onSkillUsed(targetX, targetY);
-        }
-      }
+      const targetAngle = this.player.rotation;
+      const targetX = this.player.x + Math.cos(targetAngle) * 200;
+      const targetY = this.player.y + Math.sin(targetAngle) * 200;
+      
+      this.handleSkillUsage(targetX, targetY);
     });
     
     // アルティメットスキル（Qキー）
@@ -165,29 +201,47 @@ export class InputController {
     // スキルジョイスティックの処理
     if (this.skillJoystick) {
       // スキルジョイスティックの使用状態をチェック
-      if (this.skillJoystick.wasReleased()) {  // リリースされたかどうかをチェックする新しいメソッド
+      if (this.skillJoystick.wasReleased()) {
         const vectorLength = this.skillJoystick.length();
         // ある程度の長さがあれば、スキルを発動
         if (vectorLength > 0.3) {
           const targetPos = this.skillJoystick.getTargetWorldPosition();
           if (targetPos && this.player.canUseSkill()) {
-            console.log("スキルジョイスティックがリリースされました: 発動します");
+            console.log("スキル発動ログ: 目標位置=", targetPos.x, targetPos.y);
             
-            // スキル発動
-            this.player.useSkill(targetPos.x, targetPos.y);
-            
-            // 効果音
             try {
+              // デバッグ用の視覚的フィードバック
+              this.scene.add.circle(targetPos.x, targetPos.y, 20, 0xff0000, 0.5)
+                .setDepth(100);
+              
+              // スキル発動
+              const success = this.player.useSkill(targetPos.x, targetPos.y);
+              console.log("スキル発動結果:", success ? "成功" : "失敗");
+              
+              // 効果音
               this.scene.sound.play('skill_activate');
-            } catch (e) {}
-            
-            // コールバックを呼び出し
-            if (this.onSkillUsed) {
-              this.onSkillUsed(targetPos.x, targetPos.y);
+              
+              // コールバックを呼び出し
+              if (this.onSkillUsed) {
+                this.onSkillUsed(targetPos.x, targetPos.y);
+              }
+            } catch (error) {
+              console.error("スキル発動中にエラー:", error);
             }
+          } else {
+            console.log("スキル発動できません: ターゲット=", targetPos, "クールダウン状態=", !this.player.canUseSkill());
           }
         }
       }
+    }
+    
+    // ジョイスティックの状態を更新
+    if (this.moveJoystick) {
+      this.moveJoystick.update();
+    }
+    
+    if (this.skillJoystick) {
+      this.skillJoystick.update();
     }
   }
   

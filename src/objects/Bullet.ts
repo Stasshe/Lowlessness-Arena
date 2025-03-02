@@ -284,13 +284,9 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     // すでに非アクティブならスキップ
     if (!this.active) return;
     
-    // 所有者と同じなら何もしない（衝突判定を厳格化）
+    // 所有者と同じなら何もしない
     if (this.isSameOwner(target)) {
-      console.log("弾が所有者と衝突: 無視します", 
-        this.getData('ownerID'), 
-        target.getData ? target.getData('id') : 'no-id',
-        "所有者名:", this._owner?.name || 'unknown'
-      );
+      console.log("弾が所有者と衝突: 無視します", this.getData('ownerID'), target.getData ? target.getData('id') : 'no-id');
       return;
     }
     
@@ -411,6 +407,10 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     this.lifespan = duration;
     this.spawnTime = this.scene.time.now;
     
+    // 弧を描くオブジェクトの場合は物理ボディを無効化
+    this.disableBody(true, false);
+  }
+  
   /**
    * 爆発設定
    * @param isExplosive 爆発するかどうか

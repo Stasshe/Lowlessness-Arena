@@ -5,6 +5,10 @@ import { MainMenuScene } from './scenes/MainMenuScene';
 import { TrainingScene } from './scenes/TrainingScene';
 import { LobbyScene } from './scenes/LobbyScene';
 import { OnlineGameScene } from './scenes/OnlineGameScene';
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
+import { GameManager } from './game/GameManager';
+import { UIManager } from './ui/UIManager';
 
 // Windowインターフェースを拡張してunlockAudio関数を追加
 declare global {
@@ -46,6 +50,20 @@ const config: Phaser.Types.Core.GameConfig = {
     OnlineGameScene
   ]
 };
+
+// Initialize Firebase (You'll need to add your own firebase config)
+const firebaseConfig = {
+  // TODO: Replace with your Firebase config
+  apiKey: "YOUR_API_KEY",
+  authDomain: "your-app.firebaseapp.com",
+  projectId: "your-app",
+  storageBucket: "your-app.appspot.com",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
 
 // ゲームの初期化
 window.addEventListener('load', () => {
@@ -132,4 +150,21 @@ function createFullscreenButton(game: Phaser.Game) {
 // エラーハンドリング
 window.addEventListener('error', (e) => {
   console.error('ゲームエラー:', e.error);
+});
+
+// Initialize the game and UI
+document.addEventListener('DOMContentLoaded', () => {
+  const gameManager = new GameManager(db);
+  const uiManager = new UIManager(gameManager);
+
+  // Debug mode toggle
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'd' && e.ctrlKey) {
+      const debugPanel = document.getElementById('debug-panel');
+      if (debugPanel) {
+        debugPanel.classList.toggle('show');
+        gameManager.toggleDebug();
+      }
+    }
+  });
 });

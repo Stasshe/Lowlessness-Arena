@@ -10,9 +10,9 @@
     "forceConsistentCasingInFileNames": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./src",
+    "baseUrl": "./",
     "paths": {
-      "@/*": ["*"]
+      "@/*": ["src/*"]
     },
     "typeRoots": [
       "./node_modules/@types",
@@ -24,6 +24,7 @@
     "isolatedModules": true,
     "noEmit": false,
     "jsx": "preserve",
+    "jsxImportSource": "solid-js",
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true

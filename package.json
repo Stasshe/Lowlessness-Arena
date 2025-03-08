@@ -1,32 +1,23 @@
 {
   "name": "lowlessness-arena",
-  "version": "0.1.0",
-  "description": "A Brawl Stars inspired browser game",
-  "main": "index.js",
+  "version": "1.0.0",
+  "description": "A browser-based multiplayer arena game inspired by Brawl Stars",
+  "main": "src/index.ts",
   "scripts": {
-    "start": "webpack serve --mode development",
-    "build": "webpack --mode production",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "setup": "node src/setup-assets.js"
+    "dev": "node esbuild.config.js --dev",
+    "build": "node esbuild.config.js",
+    "start": "node server.js"
   },
-  "keywords": ["game", "phaser", "browser-game"],
-  "author": "",
-  "license": "UNLICENSED",
-  "private": true,
   "dependencies": {
+    "firebase": "^9.22.0",
     "phaser": "^3.60.0",
-    "firebase": "^9.22.0"
+    "solid-js": "^1.7.3"
   },
   "devDependencies": {
-    "copy-webpack-plugin": "^11.0.0",
-    "html-webpack-plugin": "^5.5.1",
-    "ts-loader": "^9.4.3",
+    "esbuild": "^0.17.19",
+    "esbuild-plugin-solid": "^0.5.0",
     "typescript": "^5.0.4",
-    "webpack": "^5.83.1",
-    "webpack-cli": "^5.1.1",
-    "webpack-dev-server": "^4.15.0"
-  },
-  "engines": {
-    "node": ">=14.0.0"
+    "esbuild-plugin-inline-image": "^0.0.9",
+    "express": "^4.18.2"
   }
 }

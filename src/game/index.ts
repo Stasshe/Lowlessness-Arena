@@ -38,8 +38,14 @@ function handleResize() {
 
 // ゲームの初期化
 window.onload = () => {
+  console.log("ゲーム初期化開始");
+
   // URLパラメータやローカルストレージからモードを取得
   const gameMode = localStorage.getItem('gameMode') || 'training';
+  console.log(`ゲームモード: ${gameMode}`);
+  
+  const selectedCharacter = localStorage.getItem('selectedCharacter');
+  console.log(`選択されたキャラクター: ${selectedCharacter || 'なし (デフォルト: hugues)'}`);
 
   // 最初に開始するシーン
   const startScene = [
@@ -48,17 +54,19 @@ window.onload = () => {
     gameMode === 'training' ? TrainingGameScene : OnlineGameScene,
     UIScene
   ];
+  console.log("開始シーン:", startScene.map(s => s.name));
 
   // ゲームの設定
   const config: Phaser.Types.Core.GameConfig = {
-    type: Phaser.WEBGL,
+    type: Phaser.AUTO, // WEBGLからAUTOに変更（互換性向上）
     width: GameConfig.DEFAULT_WIDTH,
     height: GameConfig.DEFAULT_HEIGHT,
     parent: 'game-container',
+    backgroundColor: '#2d2d2d', // 明示的に背景色を設定
     physics: {
       default: 'arcade',
       arcade: {
-        gravity: { x: 0, y: 0 }, // yプロパティを追加
+        gravity: { x: 0, y: 0 },
         debug: process.env.NODE_ENV === 'development'
       }
     },
@@ -76,4 +84,5 @@ window.onload = () => {
   // リサイズイベントの登録
   window.addEventListener('resize', handleResize);
   handleResize();
+  console.log("ゲーム初期化完了");
 };

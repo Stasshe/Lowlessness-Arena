@@ -11,11 +11,19 @@ export class PreloadScene extends Phaser.Scene {
   }
   
   preload(): void {
+    console.log("PreloadScene preload start");
+    
     // ロード画面の作成
     this.createLoadingBar();
     
+    // エラーハンドリング追加
+    this.load.on('fileerror', (file: Phaser.Loader.File) => {
+      console.error(`ファイル読み込みエラー: ${file.key}, URL: ${file.url}`);
+    });
+    
     // ロード進行状況の表示
     this.load.on('progress', (value: number) => {
+      console.log(`読み込み進行状況: ${Math.floor(value * 100)}%`);
       this.progressBar.clear();
       this.progressBar.fillStyle(0xffffff, 1);
       this.progressBar.fillRect(
@@ -28,6 +36,7 @@ export class PreloadScene extends Phaser.Scene {
     });
     
     this.load.on('complete', () => {
+      console.log("アセット読み込み完了");
       this.progressBar.destroy();
       this.loadingBar.destroy();
       this.loadingText.destroy();
@@ -38,16 +47,29 @@ export class PreloadScene extends Phaser.Scene {
   }
   
   create(): void {
+    console.log("PreloadScene create start");
+    
     // デバッグ情報
     if (GameConfig.DEBUG) {
-      console.log('Preload complete, starting main menu');
+      console.log('Preload complete, creating animations');
     }
     
-    // アニメーションの作成
-    this.createAnimations();
-    
-    // メインメニューへ
-    this.scene.start(GameConfig.SCENES.MAIN_MENU);
+    try {
+      // アニメーションの作成
+      this.createAnimations();
+      console.log("アニメーション作成完了");
+      
+      // メインメニューへ
+      if (localStorage.getItem('gameMode') === 'training') {
+        console.log("TrainingGameSceneを開始します");
+        this.scene.start(GameConfig.SCENES.TRAINING_GAME);
+      } else {
+        console.log("MainMenuSceneを開始します");
+        this.scene.start(GameConfig.SCENES.MAIN_MENU);
+      }
+    } catch (e) {
+      console.error("PreloadScene createでエラー:", e);
+    }
   }
   
   private createLoadingBar(): void {
@@ -77,38 +99,46 @@ export class PreloadScene extends Phaser.Scene {
   }
   
   private loadAssets(): void {
-    // マップタイル
-    this.load.image('grass', 'assets/images/tiles/grass.png');
-    this.load.image('floor', 'assets/images/tiles/floor.png');
-    this.load.image('wall', 'assets/images/tiles/wall.png');
+    console.log("アセット読み込みを開始");
     
-    // キャラクター
-    this.loadCharacterAssets('hugues');
-    this.loadCharacterAssets('gawain');
-    this.loadCharacterAssets('lancel');
-    this.loadCharacterAssets('beatrice');
-    this.loadCharacterAssets('marguerite');
-    
-    // エフェクト
-    this.load.image('bullet', 'assets/images/projectiles/bullet.png');
-    this.load.image('arrow', 'assets/images/projectiles/arrow.png');
-    this.load.image('bomb', 'assets/images/projectiles/bomb.png');
-    this.load.image('explosion', 'assets/images/effects/explosion.png');
-    this.load.spritesheet('explosion-anim', 'assets/images/effects/explosion-anim.png', { 
-      frameWidth: 64, 
-      frameHeight: 64 
-    });
-    
-    // UI要素
-    this.load.image('health-bar', 'assets/images/ui/health-bar.png');
-    this.load.image('health-bar-bg', 'assets/images/ui/health-bar-bg.png');
-    this.load.image('skill-button', 'assets/images/ui/skill-button.png');
-    this.load.image('ult-button', 'assets/images/ui/ult-button.png');
-    
-    // サウンド
-    this.load.audio('shot', 'assets/sounds/shot.mp3');
-    this.load.audio('hit', 'assets/sounds/hit.mp3');
-    this.load.audio('explosion', 'assets/sounds/explosion.mp3');
+    try {
+      // マップタイル
+      this.load.image('grass', 'assets/images/tiles/grass.png');
+      this.load.image('floor', 'assets/images/tiles/floor.png');
+      this.load.image('wall', 'assets/images/tiles/wall.png');
+      
+      // キャラクター
+      this.loadCharacterAssets('hugues');
+      this.loadCharacterAssets('gawain');
+      this.loadCharacterAssets('lancel');
+      this.loadCharacterAssets('beatrice');
+      this.loadCharacterAssets('marguerite');
+      
+      // エフェクト
+      this.load.image('bullet', 'assets/images/projectiles/bullet.png');
+      this.load.image('arrow', 'assets/images/projectiles/arrow.png');
+      this.load.image('bomb', 'assets/images/projectiles/bomb.png');
+      this.load.image('explosion', 'assets/images/effects/explosion.png');
+      this.load.spritesheet('explosion-anim', 'assets/images/effects/explosion-anim.png', { 
+        frameWidth: 64, 
+        frameHeight: 64 
+      });
+      
+      // UI要素
+      this.load.image('health-bar', 'assets/images/ui/health-bar.png');
+      this.load.image('health-bar-bg', 'assets/images/ui/health-bar-bg.png');
+      this.load.image('skill-button', 'assets/images/ui/skill-button.png');
+      this.load.image('ult-button', 'assets/images/ui/ult-button.png');
+      
+      // サウンド
+      this.load.audio('shot', 'assets/sounds/shot.mp3');
+      this.load.audio('hit', 'assets/sounds/hit.mp3');
+      this.load.audio('explosion', 'assets/sounds/explosion.mp3');
+      
+      console.log("アセット読み込みキュー設定完了");
+    } catch (e) {
+      console.error("アセット読み込み設定中にエラー:", e);
+    }
   }
   
   private loadCharacterAssets(name: string): void {

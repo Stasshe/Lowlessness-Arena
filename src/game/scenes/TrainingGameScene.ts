@@ -13,11 +13,33 @@ export class TrainingGameScene extends GameScene {
   }
   
   create(): void {
-    // 親クラスのcreateメソッド呼び出し
-    super.create();
+    console.log("TrainingGameScene create start");
     
-    // トレーニングモードの準備
-    this.setupTrainingMode();
+    try {
+      // 背景色を明示的に設定（マップが表示されない場合の対策）
+      this.cameras.main.setBackgroundColor('#2d2d2d');
+      
+      // 親クラスのcreateメソッド呼び出し
+      super.create();
+      
+      // トレーニングモードの準備
+      this.setupTrainingMode();
+      
+      console.log("TrainingGameScene create complete");
+    } catch (e) {
+      console.error("TrainingGameScene createでエラー:", e);
+      // 最低限の背景テキスト表示でエラーを通知
+      this.add.text(
+        this.cameras.main.width / 2,
+        this.cameras.main.height / 2,
+        'Error loading training mode.\nCheck console for details.',
+        {
+          fontSize: '24px',
+          color: '#ffffff',
+          align: 'center'
+        }
+      ).setOrigin(0.5);
+    }
   }
   
   update(time: number, delta: number): void {
@@ -33,38 +55,39 @@ export class TrainingGameScene extends GameScene {
   
   // トレーニングモードの設定
   private setupTrainingMode(): void {
+    console.log("トレーニングモード設定開始");
+    
     // 選択されたキャラクターを取得（なければヒューズをデフォルトに）
     const selectedCharacter = localStorage.getItem('selectedCharacter') || 'hugues';
+    console.log(`選択されたキャラクター: ${selectedCharacter}`);
     
-    // プレイヤーを生成
-    this.spawnPlayer(selectedCharacter);
-    
-    // 一定距離ごとにダミーキャラを配置
-    this.spawnTrainingDummies();
-    
-    // ヘルプテキスト表示
-    const helpText = this.add.text(
-      this.cameras.main.width / 2,
-      50,
-      'トレーニングモード\nタップ: 通常攻撃 | Sキー/右ジョイスティック: スキル | Dキー/右下ジョイスティック: アルティメット',
-      {
-        fontFamily: 'Arial',
-        fontSize: '16px',
-        color: '#ffffff',
-        align: 'center'
-      }
-    );
-    helpText.setOrigin(0.5, 0);
-    helpText.setScrollFactor(0); // カメラに追従
-    
-    // デバッグインジケーター (開発中のみ)
-    if (GameConfig.DEBUG) {
-      const debugText = this.add.text(10, 10, 'DEBUG MODE', {
-        fontFamily: 'Arial',
-        fontSize: '12px',
-        color: '#ff0000'
-      });
-      debugText.setScrollFactor(0);
+    try {
+      // プレイヤーを生成
+      this.spawnPlayer(selectedCharacter);
+      console.log("プレイヤー生成成功");
+      
+      // 一定距離ごとにダミーキャラを配置
+      this.spawnTrainingDummies();
+      console.log("ダミーキャラ生成成功");
+      
+      // ヘルプテキスト表示
+      const helpText = this.add.text(
+        this.cameras.main.width / 2,
+        50,
+        'トレーニングモード\nタップ: 通常攻撃 | Sキー/右ジョイスティック: スキル | Dキー/右下ジョイスティック: アルティメット',
+        {
+          fontFamily: 'Arial',
+          fontSize: '16px',
+          color: '#ffffff',
+          align: 'center'
+        }
+      );
+      helpText.setOrigin(0.5, 0);
+      helpText.setScrollFactor(0); // カメラに追従
+      
+      console.log("トレーニングモード設定完了");
+    } catch (e) {
+      console.error("トレーニングモード設定中にエラー:", e);
     }
   }
   

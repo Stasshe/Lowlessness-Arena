@@ -19,6 +19,8 @@ export const App: Component = () => {
     window.location.href = 'lobby.html';
   };
 
+  // Solid-JSはReactとは異なり、JSXをトランスパイルする方法が違います
+  // solid-jsのjsxImportSourceをtsconfig.jsonに設定済みなのでエラーは解消されるはずです
   return (
     <div class="welcome-screen">
       {isLoading() ? (

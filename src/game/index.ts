@@ -4,8 +4,14 @@ import { BootScene } from './scenes/BootScene';
 import { PreloadScene } from './scenes/PreloadScene';
 import { MainMenuScene } from './scenes/MainMenuScene';
 import { TrainingGameScene } from './scenes/TrainingGameScene';
-import { OnlineGameScene } from './scenes/OnlineGameScene';
 import { UIScene } from './scenes/UIScene';
+
+// Window型にgameプロパティを追加
+declare global {
+  interface Window {
+    game?: Phaser.Game;
+  }
+}
 
 // リサイズハンドラー
 function handleResize() {
@@ -40,7 +46,7 @@ window.onload = () => {
     physics: {
       default: 'arcade',
       arcade: {
-        gravity: { y: 0 },
+        gravity: { x: 0, y: 0 }, // yプロパティを追加
         debug: process.env.NODE_ENV === 'development'
       }
     },
@@ -49,7 +55,6 @@ window.onload = () => {
       PreloadScene,
       MainMenuScene,
       TrainingGameScene,
-      OnlineGameScene,
       UIScene
     ],
     scale: {

@@ -46,8 +46,10 @@ export class Map {
     // 壁の当たり判定を設定
     this.wallLayer.getChildren().forEach((wall: Phaser.GameObjects.GameObject) => {
       const sprite = wall as Phaser.Physics.Arcade.Sprite;
-      sprite.setImmovable(true);
-      sprite.body.setSize(GameConfig.BLOCK_SIZE * 0.9, GameConfig.BLOCK_SIZE * 0.9);
+      if (sprite && sprite.body) {
+        sprite.setImmovable(true);
+        sprite.body.setSize(GameConfig.BLOCK_SIZE * 0.9, GameConfig.BLOCK_SIZE * 0.9);
+      }
     });
     
     // 草の上にいるプレイヤーを部分的に隠す処理は別途設定

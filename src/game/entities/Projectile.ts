@@ -46,7 +46,9 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
     this.setScale(0.8);
     
     // 衝突サイズの調整
-    this.body.setSize(this.width * 0.7, this.height * 0.7);
+    if (this.body) {
+      this.body.setSize(this.width * 0.7, this.height * 0.7);
+    }
     
     // 寿命設定
     scene.time.delayedCall(config.lifespan, this.destroy, [], this);
@@ -63,9 +65,12 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
     const velocityY = Math.sin(angle) * this.config.speed;
     this.setVelocity(velocityX, velocityY);
     
-    if (this.config.aimType === AimType.PARABOLIC) {
-      // 放物線の場合は重力を設定
-      this.body.setGravityY(300);
+    // 放物線の場合は重力を設定
+    if (this.config.aimType === AimType.PARABOLIC && this.body) {
+      // ArcadeBodyのみがgravityYを持っているため型チェック
+      if (this.body instanceof Phaser.Physics.Arcade.Body) {
+        this.body.setGravityY(300);
+      }
     }
   }
   
@@ -178,7 +183,9 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
     const knockbackX = Math.cos(angle) * this.config.knockback!;
     const knockbackY = Math.sin(angle) * this.config.knockback!;
     
-    target.body.velocity.x += knockbackX;
-    target.body.velocity.y += knockbackY;
+    if (target.body) {
+      target.body.velocity.x += knockbackX;
+      target.body.velocity.y += knockbackY;
+    }
   }
 }

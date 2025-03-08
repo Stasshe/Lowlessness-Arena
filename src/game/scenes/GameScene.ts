@@ -54,6 +54,9 @@ export class GameScene extends Phaser.Scene {
     // カメラの設定
     this.setupCamera();
     
+    // UIシーンとの通信のためにプレイヤーデータを共有
+    this.data.set('player', this.player);
+    
     // UI シーンとの通信
     this.events.emit('scene-ready');
   }
@@ -105,8 +108,13 @@ export class GameScene extends Phaser.Scene {
     // 敵とブロックの衝突を設定
     this.physics.add.collider(enemy, this.map.getWallLayer());
     
-    // 敵とプレイヤーの衝突を設定
-    this.physics.add.collider(enemy, this.player);
+    // 敵とプレイヤーの衝突を設定 - 型をArcadeColliderTypeに合わせる
+    if (this.player) {
+      this.physics.add.collider(
+        enemy as Phaser.Types.Physics.Arcade.ArcadeColliderType,
+        this.player as Phaser.Types.Physics.Arcade.ArcadeColliderType
+      );
+    }
     
     // 敵リストに追加
     this.enemies.push(enemy);
@@ -160,16 +168,16 @@ export class GameScene extends Phaser.Scene {
     let moveX = 0;
     let moveY = 0;
     
-    // キーボード入力
-    if (this.cursors.left.isDown) {
+    // キーボード入力 - nullチェックを追加
+    if (this.cursors?.left?.isDown) {
       moveX = -1;
-    } else if (this.cursors.right.isDown) {
+    } else if (this.cursors?.right?.isDown) {
       moveX = 1;
     }
     
-    if (this.cursors.up.isDown) {
+    if (this.cursors?.up?.isDown) {
       moveY = -1;
-    } else if (this.cursors.down.isDown) {
+    } else if (this.cursors?.down?.isDown) {
       moveY = 1;
     }
     

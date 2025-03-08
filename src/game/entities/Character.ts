@@ -27,12 +27,12 @@ export interface CharacterConfig {
 }
 
 export class Character extends Phaser.Physics.Arcade.Sprite {
-  protected scene: Phaser.Scene;
-  public stats: CharacterStats; // UIからアクセスできるようにpublicに
+  public scene: Phaser.Scene;
+  public stats: CharacterStats;
   
-  public team: TeamType; // 同じチームかどうか判定に必要
-  protected type: string;
-  protected name: string;
+  public team: TeamType;
+  public type: string;
+  public name: string; // protectedからpublicに変更
   
   protected lastAttackTime: Record<AttackType, number> = {
     [AttackType.NORMAL]: 0,
@@ -67,8 +67,11 @@ export class Character extends Phaser.Physics.Arcade.Sprite {
     // キャラクターの基本設定
     this.setOrigin(0.5, 0.5);
     this.setScale(1.5);
-    this.scene.add.existing(this);
-    this.scene.physics.add.existing(this);
+    
+    // シーンへの追加と型キャスト
+    scene.add.existing(this as unknown as Phaser.GameObjects.GameObject);
+    scene.physics.add.existing(this as unknown as Phaser.GameObjects.GameObject);
+    
     this.setCollideWorldBounds(true);
     
     // 物理特性の設定

@@ -49,11 +49,22 @@ export class HuguesNormalAttack {
     this.scene.sound.play('shot', { volume: 0.3 });
     
     // 対象となるキャラクターたちとの衝突検出
-    this.scene.physics.add.overlap(bullet, this.scene.children.getAll().filter(obj => 
+    const charactersToCheck = this.scene.children.getAll().filter(obj => 
       obj instanceof Character && obj !== this.owner && obj.team !== this.owner.team
-    ), (bullet, target) => {
-      (bullet as Projectile).hitTarget(target as Character);
-    });
+    ) as Phaser.GameObjects.GameObject[];
+    
+    if (charactersToCheck.length > 0) {
+      this.scene.physics.add.overlap(
+        bullet,
+        charactersToCheck,
+        (bulletObj, targetObj) => {
+          const character = targetObj as Character;
+          if (character) {
+            (bulletObj as Projectile).hitTarget(character);
+          }
+        }
+      );
+    }
     
     // 壁との衝突検出
     const map = (this.scene as any).map;

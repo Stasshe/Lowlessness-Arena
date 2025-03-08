@@ -35,30 +35,52 @@ export class GameScene extends Phaser.Scene {
   }
   
   create(): void {
-    // 物理エンジンの設定
-    this.physics.world.setBounds(
-      0, 0,
-      GameConfig.MAP_WIDTH * GameConfig.BLOCK_SIZE,
-      GameConfig.MAP_HEIGHT * GameConfig.BLOCK_SIZE
-    );
+    console.log("===== GameScene create 開始 =====");
     
-    // キャラクターファクトリーの初期化
-    this.characterFactory = new CharacterFactory(this);
-    
-    // マップの作成 (デフォルトで日本マップを使用)
-    this.createMap(new JapanMap());
-    
-    // 入力の設定
-    this.setupInput();
-    
-    // カメラの設定
-    this.setupCamera();
-    
-    // UIシーンとの通信のためにプレイヤーデータを共有
-    this.data.set('player', this.player);
-    
-    // UI シーンとの通信
-    this.events.emit('scene-ready');
+    try {
+      // 物理エンジンの設定
+      console.log("物理エンジンの世界境界を設定");
+      this.physics.world.setBounds(
+        0, 0,
+        GameConfig.MAP_WIDTH * GameConfig.BLOCK_SIZE,
+        GameConfig.MAP_HEIGHT * GameConfig.BLOCK_SIZE
+      );
+      
+      // キャラクターファクトリーの初期化
+      console.log("キャラクターファクトリーを初期化");
+      this.characterFactory = new CharacterFactory(this);
+      
+      // マップの作成 (デフォルトで日本マップを使用)
+      console.log("マップを初期化");
+      try {
+        this.createMap(new JapanMap());
+      } catch (mapErr) {
+        console.error("マップの作成中にエラー:", mapErr);
+      }
+      
+      // 入力の設定
+      console.log("ゲーム入力を設定");
+      this.setupInput();
+      
+      // カメラの設定
+      console.log("カメラを設定");
+      this.setupCamera();
+      
+      // UIシーンとの通信のためにプレイヤーデータを共有
+      if (this.player) {
+        this.data.set('player', this.player);
+      } else {
+        console.warn("プレイヤーがまだ存在しないため、UIデータ共有をスキップ");
+      }
+      
+      // UI シーンとの通信
+      console.log("UIシーンにイベントを発行");
+      this.events.emit('scene-ready');
+      
+      console.log("GameScene create 完了");
+    } catch (e) {
+      console.error("GameScene create でエラーが発生しました:", e);
+    }
   }
   
   update(time: number, delta: number): void {
@@ -78,22 +100,49 @@ export class GameScene extends Phaser.Scene {
   
   // マップの作成
   protected createMap(mapData: any): void {
-    this.map = new Map(this, mapData);
-    this.map.create();
+    console.log("マップ作成開始");
+    try {
+      if (!mapData) {
+        console.error("マップデータが無効です");
+        return;
+      }
+      this.map = new Map(this, mapData);
+      console.log("マップインスタンス作成完了、create()を呼び出し");
+      this.map.create();
+      console.log("マップ作成完了");
+    } catch (e) {
+      console.error("マップ作成中にエラー:", e);
+    }
   }
   
   // プレイヤーのスポーン
   protected spawnPlayer(characterType: string, teamType: TeamType = TeamType.BLUE): void {
-    const spawnPoint = this.map.getSpawnPoint(teamType);
-    this.player = this.characterFactory.createCharacter(
-      characterType,
-      spawnPoint.x,
-      spawnPoint.y,
-      teamType
-    );
-    
-    // プレイヤーとブロックの衝突を設定
-    this.physics.add.collider(this.player, this.map.getWallLayer());
+    console.log(`プレイヤー(${characterType})のスポーン開始`);
+    try {
+      // マップからスポーンポイントを取得
+      if (!this.map) {
+        console.error("マップが未初期化のためプレイヤーをスポーンできません");
+        return;
+      }
+      
+      const spawnPoint = this.map.getSpawnPoint(teamType);
+      console.log(`スポーンポイント: x=${spawnPoint.x}, y=${spawnPoint.y}`);
+      
+      // キャラクターを生成
+      this.player = this.characterFactory.createCharacter(
+        characterType,
+        spawnPoint.x,
+        spawnPoint.y,
+        teamType
+      );
+      console.log("プレイヤーキャラクター作成完了");
+      
+      // プレイヤーとブロックの衝突を設定
+      this.physics.add.collider(this.player, this.map.getWallLayer());
+      console.log("プレイヤーと壁の衝突判定設定完了");
+    } catch (e) {
+      console.error("プレイヤースポーン中にエラー:", e);
+    }
   }
   
   // 敵のスポーン (AI または他のプレイヤー)

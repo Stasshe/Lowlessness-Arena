@@ -8,41 +8,103 @@ export class TrainingGameScene extends GameScene {
   private aiUpdateInterval: number = 1000; // AI更新間隔（ミリ秒）
   private targetDummies: string[] = ['gawain', 'lancel', 'beatrice', 'marguerite'];
   
+  // FPSカウンターの追加
+  private fpsText: Phaser.GameObjects.Text | null = null;
+  private lastFpsUpdate: number = 0;
+  private fpsUpdateInterval: number = 500; // 500ミリ秒ごとに更新
+  
   constructor() {
     super(GameConfig.SCENES.TRAINING_GAME);
   }
   
   create(): void {
-    console.log("TrainingGameScene create start");
+    console.log("===== TrainingGameScene create 開始 =====");
     
     try {
+      console.log("カメラ設定と背景色を設定");
       // 背景色を明示的に設定（マップが表示されない場合の対策）
       this.cameras.main.setBackgroundColor('#2d2d2d');
       
+      console.log("親クラスのcreateメソッドを呼び出し");
       // 親クラスのcreateメソッド呼び出し
-      super.create();
+      try {
+        super.create();
+      } catch (e) {
+        console.error("GameScene.create() でエラーが発生しました:", e);
+        throw e; // 再スロー
+      }
       
+      console.log("トレーニングモードの初期設定");
       // トレーニングモードの準備
       this.setupTrainingMode();
       
-      console.log("TrainingGameScene create complete");
+      // FPSカウンター（デバッグ用）
+      if (GameConfig.DEBUG) {
+        this.fpsText = this.add.text(10, 10, 'FPS: 0', { 
+          fontSize: '16px', 
+          color: '#00ff00',
+          fontFamily: 'Arial'
+        });
+        this.fpsText.setScrollFactor(0);
+        this.fpsText.setDepth(1000);
+      }
+      
+      console.log("TrainingGameScene create 成功");
+      
+      // デバイスとブラウザ情報をロギング
+      console.log("デバイス情報:", {
+        desktop: this.sys.game.device.os.desktop,
+        mobile: this.sys.game.device.os.android || this.sys.game.device.os.iOS,
+        browser: this.sys.game.device.browser ? '利用可能' : '未定義',
+        webGL: this.sys.game.device.features.webGL ? "サポート" : "未サポート"
+      });
+      
     } catch (e) {
       console.error("TrainingGameScene createでエラー:", e);
-      // 最低限の背景テキスト表示でエラーを通知
+      this.handleCreateError(e);
+    }
+  }
+  
+  private handleCreateError(error: any): void {
+    console.error("=== 詳細エラーレポート ===");
+    console.error("エラータイプ:", typeof error);
+    console.error("エラーメッセージ:", error.message);
+    console.error("エラースタック:", error.stack);
+    
+    // シーン状態の検査
+    console.log("シーン状態:", {
+      key: this.scene.key,
+      active: this.scene.isActive(),
+      visible: this.scene.isVisible(),
+      running: this.scene.isActive() && !this.scene.isPaused(),
+      cameras: this.cameras?.main ? "利用可能" : "未初期化"
+    });
+    
+    // エラー通知表示
+    try {
       this.add.text(
         this.cameras.main.width / 2,
         this.cameras.main.height / 2,
-        'Error loading training mode.\nCheck console for details.',
+        'ゲームロードエラー\n\nコンソールログを確認してください',
         {
           fontSize: '24px',
           color: '#ffffff',
           align: 'center'
         }
       ).setOrigin(0.5);
+    } catch (e) {
+      console.error("エラー表示にも失敗:", e);
     }
   }
   
   update(time: number, delta: number): void {
+    // FPS表示の更新（デバッグモードのみ）
+    if (GameConfig.DEBUG && this.fpsText && time - this.lastFpsUpdate > this.fpsUpdateInterval) {
+      const fps = Math.round(1000 / delta);
+      this.fpsText.setText(`FPS: ${fps}`);
+      this.lastFpsUpdate = time;
+    }
+    
     // 親クラスのupdateメソッド呼び出し
     super.update(time, delta);
     
@@ -63,10 +125,12 @@ export class TrainingGameScene extends GameScene {
     
     try {
       // プレイヤーを生成
+      console.log("プレイヤーキャラクター生成開始");
       this.spawnPlayer(selectedCharacter);
       console.log("プレイヤー生成成功");
       
       // 一定距離ごとにダミーキャラを配置
+      console.log("AI敵キャラクター生成開始");
       this.spawnTrainingDummies();
       console.log("ダミーキャラ生成成功");
       

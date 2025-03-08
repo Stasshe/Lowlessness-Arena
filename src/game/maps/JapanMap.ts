@@ -23,11 +23,53 @@ export class JapanMap {
 
   // マップデータの取得
   public getData(): BlockType[][] {
+    console.log("JapanMap のデータを取得中");
+    
+    // データの有効性をチェック
+    if (!this.data || this.data.length === 0) {
+      console.warn("マップデータが空のため、デバッグ用のダミーマップを作成します");
+      return this.createFallbackMap();
+    }
+    
+    console.log(`マップサイズ: ${this.data[0].length}x${this.data.length}`);
     return this.data;
+  }
+
+  // フォールバック（デバッグ）マップの作成
+  private createFallbackMap(): BlockType[][] {
+    console.log("フォールバックマップを作成中");
+    const map: BlockType[][] = [];
+    
+    // 10x18の単純なマップを作成
+    for (let y = 0; y < 10; y++) {
+      map[y] = [];
+      for (let x = 0; x < 18; x++) {
+        // 外周に壁を設置
+        if (x === 0 || y === 0 || x === 17 || y === 9) {
+          map[y][x] = BlockType.WALL;
+        } 
+        // いくつかランダムな壁
+        else if ((x === 4 || x === 13) && (y === 3 || y === 6)) {
+          map[y][x] = BlockType.WALL;
+        }
+        // 一部草
+        else if ((x > 7 && x < 11) && (y > 3 && y < 7)) {
+          map[y][x] = BlockType.GRASS;
+        }
+        // それ以外は床
+        else {
+          map[y][x] = BlockType.FLOOR;
+        }
+      }
+    }
+    
+    console.log("フォールバックマップ作成完了");
+    return map;
   }
 
   // スポーンポイントの取得
   public getSpawnPoint(team: TeamType): { x: number, y: number } {
+    console.log(`TeamType ${team} のスポーンポイントを取得`);
     if (team === TeamType.BLUE) {
       return this.blueSpawn;
     } else {

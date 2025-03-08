@@ -57,6 +57,11 @@ export class Character extends Phaser.Physics.Arcade.Sprite {
   public isDead: boolean = false;
   protected isInvulnerable: boolean = false;
   
+  // 視界外かどうかを判定するためのプロパティ
+  private isOffscreen: boolean = false;
+  private updateOffscreenCheck: number = 0;
+  private offscreenCheckInterval: number = 500; // 500ミリ秒ごとに確認
+  
   constructor(scene: Phaser.Scene, x: number, y: number, texture: string, config: CharacterConfig, team: TeamType) {
     super(scene, x, y, texture);
     this.scene = scene;
@@ -117,11 +122,18 @@ export class Character extends Phaser.Physics.Arcade.Sprite {
     // 死亡状態チェック
     if (this.isDead) return;
     
-    // 体力バーの更新
-    this.updateHealthBar();
+    // 視界外のキャラクターは重い処理をスキップ
+    this.updateOffscreenCheck += delta;
+    if (this.updateOffscreenCheck >= this.offscreenCheckInterval) {
+      this.updateOffscreenCheck = 0;
+      this.checkIfOffscreen();
+    }
     
-    // 名前テキストの更新
-    this.updateNameText();
+    // 体力バーとネームタグは視界内のみ更新
+    if (!this.isOffscreen) {
+      this.updateHealthBar();
+      this.updateNameText();
+    }
     
     // クールダウンの更新
     this.updateCooldowns(time);
@@ -133,7 +145,11 @@ export class Character extends Phaser.Physics.Arcade.Sprite {
         this.ultimateCharge = this.ultimateChargeMax;
         this.isUltimateReady = true;
         this.cooldownReady[AttackType.ULTIMATE] = true;
-        this.onUltimateReady();
+        
+        // 視界内の場合のみエフェクト表示
+        if (!this.isOffscreen) {
+          this.onUltimateReady();
+        }
       }
     }
   }
@@ -327,7 +343,7 @@ export class Character extends Phaser.Physics.Arcade.Sprite {
   
   // アニメーション再生
   protected playAnimation(key: string): void {
-    if (!this.anims) return;
+    if (!this.anims || this.isOffscreen) return; // 視界外ならスキップ
     
     const animKey = `${this.type}-${key}`;
     if (!this.anims.isPlaying || this.anims.currentAnim?.key !== animKey) {
@@ -474,6 +490,28 @@ export class Character extends Phaser.Physics.Arcade.Sprite {
         healText.destroy();
       }
     });
+  }
+  
+  // カメラの視界内かどうかをチェック
+  private checkIfOffscreen(): void {
+    if (!this.scene || !this.scene.cameras) return;
+    
+    const camera = this.scene.cameras.main;
+    const padding = 100; // 画面外の余白
+    
+    this.isOffscreen = (
+      this.x < camera.scrollX - padding || 
+      this.x > camera.scrollX + camera.width + padding ||
+      this.y < camera.scrollY - padding ||
+      this.y > camera.scrollY + camera.height + padding
+    );
+    
+    // 視界外の場合はアニメーション一時停止（パフォーマンス向上）
+    if (this.isOffscreen && this.anims.isPlaying) {
+      this.anims.pause();
+    } else if (!this.isOffscreen && this.anims.isPaused) {
+      this.anims.resume();
+    }
   }
   
   // サブクラスでオーバーライドするメソッド

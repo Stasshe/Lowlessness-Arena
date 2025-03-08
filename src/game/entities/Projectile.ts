@@ -15,6 +15,63 @@ export interface ProjectileConfig {
   spreadAngle?: number;
 }
 
+// オブジェクトプールの追加
+export class ProjectilePool {
+  private scene: Phaser.Scene;
+  private pool: Phaser.GameObjects.Group;
+  private texture: string;
+  private owner: Character;
+  private config: ProjectileConfig;
+  private team: TeamType;
+  
+  constructor(scene: Phaser.Scene, texture: string, owner: Character, config: ProjectileConfig, team: TeamType) {
+    this.scene = scene;
+    this.texture = texture;
+    this.owner = owner;
+    this.config = config;
+    this.team = team;
+    
+    // オブジェクトプールを作成
+    this.pool = this.scene.add.group({
+      classType: Projectile,
+      active: false,
+      visible: false,
+      key: texture,
+      maxSize: 20, // 最大プール数
+      runChildUpdate: true // 子要素のupdateメソッドを自動実行
+    });
+  }
+  
+  // プールから弾を取得して発射
+  fire(x: number, y: number, directionX: number, directionY: number): Projectile | null {
+    let projectile = this.pool.getFirstDead(false) as Projectile;
+    
+    if (!projectile) {
+      // プールが枯渇した場合は新しく作成するか、nullを返す
+      if (this.pool.getLength() < 20) {
+        projectile = new Projectile(
+          this.scene, 
+          x, 
+          y, 
+          this.texture, 
+          this.owner,
+          this.config,
+          this.team
+        );
+        this.pool.add(projectile);
+      } else {
+        return null;
+      }
+    }
+    
+    // 弾を再設定して発射
+    projectile.reset(x, y);
+    projectile.fire(directionX, directionY);
+    
+    return projectile;
+  }
+}
+
 export class Projectile extends Phaser.Physics.Arcade.Sprite {
   protected config: ProjectileConfig;
   protected team: TeamType;
@@ -22,6 +79,9 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
   protected startPosition: { x: number, y: number };
   protected hasHit: boolean = false;
   protected hitEnemies: Set<Character> = new Set();
+  protected travelDistance: number = 0; // 移動距離の追跡
+  protected prevX: number = 0;
+  protected prevY: number = 0;
   
   constructor(
     scene: Phaser.Scene,
@@ -74,19 +134,53 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
     }
   }
   
+  // オブジェクトリセット用のメソッド追加
+  reset(x: number, y: number): void {
+    this.setActive(true);
+    this.setVisible(true);
+    this.setPosition(x, y);
+    this.hasHit = false;
+    this.hitEnemies.clear();
+    this.travelDistance = 0;
+    this.prevX = x;
+    this.prevY = y;
+    this.startPosition = { x, y };
+    
+    // 物理ボディのリセット
+    if (this.body) {
+      (this.body as Phaser.Physics.Arcade.Body).reset(x, y);
+    }
+  }
+  
   // 弾の挙動を更新
   update(time: number, delta: number): void {
-    // 発射位置からの距離をチェック
-    const distance = Phaser.Math.Distance.Between(
-      this.startPosition.x,
-      this.startPosition.y,
-      this.x,
-      this.y
-    );
+    // パフォーマンス最適化: 非アクティブな弾はスキップ
+    if (!this.active) return;
+    
+    // 移動距離の計算（毎フレーム累積）
+    const dx = this.x - this.prevX;
+    const dy = this.y - this.prevY;
+    const moveDist = Math.sqrt(dx * dx + dy * dy);
+    this.travelDistance += moveDist;
+    this.prevX = this.x;
+    this.prevY = this.y;
     
     // 射程範囲を超えた場合
-    if (distance > this.config.range) {
+    if (this.travelDistance > this.config.range) {
       this.hitTarget();
+      return;
+    }
+    
+    // 画面外に出た場合
+    const padding = 100;
+    if (
+      this.x < -padding ||
+      this.x > this.scene.cameras.main.width + padding ||
+      this.y < -padding ||
+      this.y > this.scene.cameras.main.height + padding
+    ) {
+      this.deactivate();
+      return;
     }
     
     // 放物線の場合は地面に当たったら爆発
@@ -95,6 +189,15 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
       if (this.y >= GameConfig.MAP_HEIGHT * GameConfig.BLOCK_SIZE - 10) {
         this.hitTarget();
       }
+    }
+  }
+  
+  // 非表示と非アクティブ化（オブジェクトプール再利用のため）
+  deactivate(): void {
+    this.setActive(false);
+    this.setVisible(false);
+    if (this.body) {
+      (this.body as Phaser.Physics.Arcade.Body).stop();
     }
   }
   
@@ -117,7 +220,7 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
       // 貫通しない場合は弾を消す
       if (!this.config.piercing) {
         this.hasHit = true;
-        this.destroy();
+        this.deactivate();
       } else {
         // 貫通する場合は対象を記録
         this.hitEnemies.add(target);
@@ -128,8 +231,17 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
         // 放物線の爆発物は地面に当たると爆発
         this.explode();
       } else {
-        this.destroy();
+        this.deactivate();
       }
+    }
+  }
+  
+  // destroy をオーバーライドして、非アクティブ化に変更
+  destroy(fromScene?: boolean): void {
+    if (fromScene) {
+      super.destroy(fromScene);
+    } else {
+      this.deactivate();
     }
   }
   

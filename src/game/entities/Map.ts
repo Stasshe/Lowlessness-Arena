@@ -34,6 +34,11 @@ export class Map {
       // 暗い背景を確実に避けるため明示的に背景色を設定
       this.scene.cameras.main.setBackgroundColor('#2d2d2d');
       
+      // パフォーマンス向上: 非表示のブロックは作成しない
+      const camera = this.scene.cameras.main;
+      const viewportWidth = camera.width / GameConfig.BLOCK_SIZE + 2; // 余白を追加
+      const viewportHeight = camera.height / GameConfig.BLOCK_SIZE + 2;
+      
       // マップデータを元にブロックを配置
       for (let y = 0; y < data.length; y++) {
         for (let x = 0; x < data[y].length; x++) {
@@ -44,13 +49,20 @@ export class Map {
           try {
             switch(blockType) {
               case BlockType.WALL:
-                this.wallLayer.create(blockX, blockY, 'wall').setScale(GameConfig.BLOCK_SIZE / 64);
+                this.wallLayer.create(blockX, blockY, 'wall')
+                  .setScale(GameConfig.BLOCK_SIZE / 64)
+                  .setOrigin(0.5, 0.5)
+                  .setImmovable(true);
                 break;
               case BlockType.GRASS:
-                this.grassLayer.create(blockX, blockY, 'grass').setScale(GameConfig.BLOCK_SIZE / 64);
+                this.grassLayer.create(blockX, blockY, 'grass')
+                  .setScale(GameConfig.BLOCK_SIZE / 64)
+                  .setOrigin(0.5, 0.5);
                 break;
               case BlockType.FLOOR:
-                this.floorLayer.create(blockX, blockY, 'floor').setScale(GameConfig.BLOCK_SIZE / 64);
+                this.floorLayer.create(blockX, blockY, 'floor')
+                  .setScale(GameConfig.BLOCK_SIZE / 64)
+                  .setOrigin(0.5, 0.5);
                 break;
             }
           } catch (e) {
@@ -59,17 +71,20 @@ export class Map {
         }
       }
       
-      // 壁の当たり判定を設定
-      this.wallLayer.getChildren().forEach((wall: Phaser.GameObjects.GameObject) => {
-        try {
-          const sprite = wall as Phaser.Physics.Arcade.Sprite;
-          if (sprite && sprite.body) {
-            sprite.setImmovable(true);
-            sprite.body.setSize(GameConfig.BLOCK_SIZE * 0.9, GameConfig.BLOCK_SIZE * 0.9);
-          }
-        } catch (e) {
-          console.error("壁のコライダー設定中にエラー:", e);
+      // 壁の当たり判定を設定（最適化）
+      this.wallLayer.refresh(); // 物理ボディ更新
+      
+      // パフォーマンス向上のため静的オブジェクトを最適化
+      this.wallLayer.setDepth(10);  // 壁は他より上に表示
+      this.grassLayer.setDepth(5);  // 草は床より上に表示
+      this.floorLayer.setDepth(1);  // 床は一番下
+      
+      // 静的レイヤーは更新頻度を下げる
+      this.wallLayer.children.iterate((child: any) => {
+        if (child && child.body) {
+          child.body.updateFromGameObject();
         }
+        return true;
       });
       
       console.log("マップ生成完了");

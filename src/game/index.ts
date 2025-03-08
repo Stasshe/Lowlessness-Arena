@@ -38,7 +38,7 @@ function handleResize() {
 
 // ゲームの初期化
 window.onload = () => {
-  console.log("ゲーム初期化開始");
+  console.log("===== ゲーム初期化開始 =====");
 
   // URLパラメータやローカルストレージからモードを取得
   const gameMode = localStorage.getItem('gameMode') || 'training';
@@ -56,33 +56,63 @@ window.onload = () => {
   ];
   console.log("開始シーン:", startScene.map(s => s.name));
 
-  // ゲームの設定
-  const config: Phaser.Types.Core.GameConfig = {
-    type: Phaser.AUTO, // WEBGLからAUTOに変更（互換性向上）
-    width: GameConfig.DEFAULT_WIDTH,
-    height: GameConfig.DEFAULT_HEIGHT,
-    parent: 'game-container',
-    backgroundColor: '#2d2d2d', // 明示的に背景色を設定
-    physics: {
-      default: 'arcade',
-      arcade: {
-        gravity: { x: 0, y: 0 },
-        debug: process.env.NODE_ENV === 'development'
+  try {
+    console.log("ゲーム設定を構成中...");
+    
+    // ゲームの設定
+    const config: Phaser.Types.Core.GameConfig = {
+      type: Phaser.AUTO,
+      width: GameConfig.DEFAULT_WIDTH,
+      height: GameConfig.DEFAULT_HEIGHT,
+      parent: 'game-container',
+      backgroundColor: '#2d2d2d',
+      physics: {
+        default: 'arcade',
+        arcade: {
+          gravity: { x: 0, y: 0 },
+          debug: process.env.NODE_ENV === 'development',
+          fps: 60,
+          timeScale: 1,
+          fixedStep: true,
+          overlapBias: 8,
+          tileBias: 16
+        }
+      },
+      scene: startScene,
+      scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+      },
+      render: {
+        pixelArt: true,
+        antialias: false,
+        antialiasGL: false,
+        roundPixels: true
+      },
+      banner: false,
+      dom: {
+        createContainer: false
+      },
+      // デバッグ情報を追加
+      callbacks: {
+        postBoot: (game) => {
+          console.log("Phaser ゲームブート完了");
+        }
       }
-    },
-    scene: startScene,
-    scale: {
-      mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH
-    }
-  };
+    };
 
-  // ゲームインスタンスの作成
-  const game = new Phaser.Game(config);
-  window.game = game;
+    console.log("Phaser.Game インスタンスを作成中...");
+    
+    // ゲームインスタンスの作成
+    const game = new Phaser.Game(config);
+    window.game = game;
 
-  // リサイズイベントの登録
-  window.addEventListener('resize', handleResize);
-  handleResize();
-  console.log("ゲーム初期化完了");
+    // リサイズイベントの登録
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    
+    console.log("===== ゲーム初期化完了 =====");
+  } catch (err) {
+    console.error("ゲーム初期化中にエラーが発生しました:", err);
+  }
 };

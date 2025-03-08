@@ -36,9 +36,26 @@ function handleResize() {
   game.scale.refresh();
 }
 
+// WebGLのサポート状況を確認
+function checkWebGLSupport() {
+  const canvas = document.createElement('canvas');
+  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  
+  if (!gl) {
+    console.warn('WebGLがサポートされていません。Canvasレンダラーにフォールバックします。');
+    return false;
+  }
+  
+  console.log('WebGLがサポートされています。WebGLレンダラーを使用します。');
+  return true;
+}
+
 // ゲームの初期化
 window.onload = () => {
   console.log("ゲーム初期化開始");
+
+  // WebGLのサポート状況を確認
+  const webGLSupported = checkWebGLSupport();
 
   // URLパラメータやローカルストレージからモードを取得
   const gameMode = localStorage.getItem('gameMode') || 'training';
@@ -58,11 +75,12 @@ window.onload = () => {
 
   // ゲームの設定
   const config: Phaser.Types.Core.GameConfig = {
-    type: Phaser.AUTO, // WEBGLからAUTOに変更（互換性向上）
+    type: webGLSupported ? Phaser.WEBGL : Phaser.CANVAS, // 明示的にWebGLを使用、サポートされていない場合はCanvas
     width: GameConfig.DEFAULT_WIDTH,
     height: GameConfig.DEFAULT_HEIGHT,
     parent: 'game-container',
-    backgroundColor: '#2d2d2d', // 明示的に背景色を設定
+    backgroundColor: '#2d2d2d',
+    powerPreference: 'high-performance', // WebGLのパフォーマンス設定を追加
     physics: {
       default: 'arcade',
       arcade: {
@@ -80,6 +98,9 @@ window.onload = () => {
   // ゲームインスタンスの作成
   const game = new Phaser.Game(config);
   window.game = game;
+
+  // 起動後にレンダラーの確認
+  console.log(`実際に使用されているレンダラー: ${game.renderer.type === Phaser.WEBGL ? 'WebGL' : 'Canvas'}`);
 
   // リサイズイベントの登録
   window.addEventListener('resize', handleResize);

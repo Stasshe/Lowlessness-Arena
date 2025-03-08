@@ -8,7 +8,8 @@ const isDev = process.argv.includes('--dev');
 // エントリーポイントファイル
 const entryPoints = [
   './src/index.tsx',
-  
+  './src/game/index.ts',
+  './src/lobby/index.tsx'
 ];
 
 // ビルド設定

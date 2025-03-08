@@ -1,0 +1,25 @@
+{
+  "name": "lowlessness-arena",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A browser-based battle arena game inspired by Brawl Stars",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node esbuild.config.js --dev",
+    "build": "node esbuild.config.js",
+    "serve": "serve dist",
+    "clean": "rm -rf dist/*"
+  },
+  "dependencies": {
+    "firebase": "^9.22.0",
+    "phaser": "^3.60.0",
+    "solid-js": "^1.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.15.11",
+    "esbuild": "^0.17.18",
+    "esbuild-plugin-solid": "^0.5.0",
+    "serve": "^14.2.0",
+    "typescript": "^5.0.4"
+  }
+}

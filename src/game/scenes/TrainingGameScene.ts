@@ -33,8 +33,11 @@ export class TrainingGameScene extends GameScene {
   
   // トレーニングモードの設定
   private setupTrainingMode(): void {
+    // 選択されたキャラクターを取得（なければヒューズをデフォルトに）
+    const selectedCharacter = localStorage.getItem('selectedCharacter') || 'hugues';
+    
     // プレイヤーを生成
-    this.spawnPlayer('hugues');
+    this.spawnPlayer(selectedCharacter);
     
     // 一定距離ごとにダミーキャラを配置
     this.spawnTrainingDummies();

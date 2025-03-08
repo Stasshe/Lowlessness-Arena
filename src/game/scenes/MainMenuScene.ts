@@ -65,19 +65,13 @@ export class MainMenuScene extends Phaser.Scene {
     
     // クリックイベント
     trainingButton.on('pointerdown', () => {
-      // トレーニングモード開始
-      this.scene.start(GameConfig.SCENES.TRAINING_GAME);
-      
-      // UI シーンを開始
-      this.scene.launch(GameConfig.SCENES.UI);
+      // トレーニングモードはHTMLページ経由で起動するように変更
+      window.location.href = 'lobby.html';
     });
     
     onlineButton.on('pointerdown', () => {
-      // オンラインマッチ開始
-      this.scene.start(GameConfig.SCENES.ONLINE_GAME);
-      
-      // UI シーンを開始
-      this.scene.launch(GameConfig.SCENES.UI);
+      // オンラインマッチもロビーから
+      window.location.href = 'lobby.html';
     });
   }
 }

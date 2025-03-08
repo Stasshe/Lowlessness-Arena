@@ -8,6 +8,14 @@
 </head>
 <body>
   <div id="game-container"></div>
+  <script>
+    // URLからモードとキャラクター情報を取得
+    const urlParams = new URLSearchParams(window.location.search);
+    const gameMode = urlParams.get('mode') || 'training';
+    
+    // ローカルストレージにモード情報を保存
+    localStorage.setItem('gameMode', gameMode);
+  </script>
   <script src="game/index.js"></script>
 </body>
 </html>

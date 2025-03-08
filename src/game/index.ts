@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
-import { GameConfig } from './config';
+import { GameConfig, GameMode } from './config';
 import { BootScene } from './scenes/BootScene';
 import { PreloadScene } from './scenes/PreloadScene';
 import { MainMenuScene } from './scenes/MainMenuScene';
 import { TrainingGameScene } from './scenes/TrainingGameScene';
+import { OnlineGameScene } from './scenes/OnlineGameScene';
 import { UIScene } from './scenes/UIScene';
 
 // Window型にgameプロパティを追加
@@ -37,6 +38,17 @@ function handleResize() {
 
 // ゲームの初期化
 window.onload = () => {
+  // URLパラメータやローカルストレージからモードを取得
+  const gameMode = localStorage.getItem('gameMode') || 'training';
+
+  // 最初に開始するシーン
+  const startScene = [
+    BootScene,
+    PreloadScene,
+    gameMode === 'training' ? TrainingGameScene : OnlineGameScene,
+    UIScene
+  ];
+
   // ゲームの設定
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.WEBGL,
@@ -50,13 +62,7 @@ window.onload = () => {
         debug: process.env.NODE_ENV === 'development'
       }
     },
-    scene: [
-      BootScene,
-      PreloadScene,
-      MainMenuScene,
-      TrainingGameScene,
-      UIScene
-    ],
+    scene: startScene,
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH

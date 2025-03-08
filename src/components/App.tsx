@@ -9,18 +9,11 @@ export const App: Component = () => {
     setIsLoading(false);
   }, 2000);
 
-  // ゲームプレイページに移動
-  const startGame = () => {
-    window.location.href = 'game.html';
-  };
-
-  // ロビーページに移動
+  // ロビーページに移動（キャラクター選択画面）
   const goToLobby = () => {
     window.location.href = 'lobby.html';
   };
 
-  // Solid-JSはReactとは異なり、JSXをトランスパイルする方法が違います
-  // solid-jsのjsxImportSourceをtsconfig.jsonに設定済みなのでエラーは解消されるはずです
   return (
     <div class="welcome-screen">
       {isLoading() ? (
@@ -33,10 +26,7 @@ export const App: Component = () => {
           <h1>Lowlessness Arena</h1>
           <div class="button-container">
             <button onClick={goToLobby} class="main-button">
-              ロビーへ進む
-            </button>
-            <button onClick={startGame} class="main-button">
-              トレーニングモード
+              プレイ開始
             </button>
           </div>
         </div>
